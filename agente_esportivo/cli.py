@@ -15,7 +15,9 @@ from pathlib import Path
 from typing import Sequence
 
 from . import relatorio
+from .aovivo import Estado, reprecifica
 from .backtest import executa
+from .combinadas import ErroDeCombinada, analisa_perna, avalia, sugere_combinadas
 from .coleta import ColetaIndisponivel, de_arquivo
 from .coleta.navegador import INSTRUCOES, coleta_odds
 from .dados import ErroDeDados, escreve_partidas, filtra, le_confrontos, le_partidas
@@ -313,6 +315,121 @@ def comando_odds(argumentos: argparse.Namespace) -> int:
     return 0
 
 
+
+def comando_aovivo(argumentos: argparse.Namespace) -> int:
+    agente = carrega_agente(argumentos)
+    try:
+        gols_casa, gols_fora = (int(x) for x in argumentos.placar.replace(":", "-").split("-"))
+    except ValueError:
+        print(f"erro: placar invalido '{argumentos.placar}' (use 1-0)", file=sys.stderr)
+        return 1
+
+    analise = reprecifica(
+        agente,
+        Estado(
+            mandante=argumentos.mandante,
+            visitante=argumentos.visitante,
+            gols_mandante=gols_casa,
+            gols_visitante=gols_fora,
+            minuto=argumentos.minuto,
+            acrescimos=argumentos.acrescimos,
+        ),
+        efeito_placar=argumentos.efeito_placar,
+    )
+
+    odds = _odds_dos_argumentos(argumentos)
+    apostas = []
+    if odds:
+        from .apostas import encontra_valor
+
+        probabilidades = dict(analise.probabilidades)
+        probabilidades.update(
+            {k: v for k, v in analise.mercados.items()
+             if k not in ("gols_esperados", "gols_restantes_esperados", "minutos_restantes")}
+        )
+        apostas = encontra_valor(
+            probabilidades, odds, ev_minimo=argumentos.ev_minimo,
+            banca=argumentos.banca, fracao_kelly=argumentos.kelly,
+        )
+
+    if argumentos.json:
+        _saida_json({
+            "estado": {
+                "mandante": analise.estado.mandante,
+                "visitante": analise.estado.visitante,
+                "placar": analise.estado.placar,
+                "minuto": analise.estado.minuto,
+                "minutos_restantes": analise.estado.minutos_restantes,
+            },
+            "probabilidades": analise.probabilidades,
+            "movimento": analise.movimento,
+            "gols_restantes": list(analise.gols_restantes),
+            "mercados": analise.mercados,
+            "placares": analise.placares,
+        })
+        return 0
+
+    print(relatorio.formata_aovivo(analise))
+    if odds:
+        print(relatorio.formata_apostas(apostas))
+    return 0
+
+
+def comando_combinar(argumentos: argparse.Namespace) -> int:
+    agente = carrega_agente(argumentos)
+    try:
+        pernas = [analisa_perna(texto) for texto in argumentos.pernas]
+        combinada = avalia(agente, pernas, odd_total=argumentos.odd_total)
+    except ErroDeCombinada as erro:
+        print(f"erro: {erro}", file=sys.stderr)
+        return 1
+
+    if argumentos.json:
+        _saida_json({
+            "pernas": [
+                {"jogo": list(a.perna.jogo), "selecao": a.perna.selecao,
+                 "probabilidade": a.probabilidade, "odd": a.perna.odd}
+                for a in combinada.pernas
+            ],
+            "conjunta": combinada.conjunta,
+            "ingenua": combinada.ingenua,
+            "correlacao": combinada.correlacao,
+            "odd_justa": combinada.odd_justa,
+            "odd_oferecida": combinada.odd_oferecida,
+            "ev": combinada.ev,
+        })
+        return 0
+
+    print(relatorio.formata_combinada(combinada, banca=argumentos.banca))
+    return 0
+
+
+def comando_sugerir(argumentos: argparse.Namespace) -> int:
+    agente = carrega_agente(argumentos)
+    confrontos = le_confrontos(_resolve_base(argumentos.arquivo))
+    sugestoes = sugere_combinadas(
+        agente, confrontos,
+        minimo_por_perna=argumentos.minimo,
+        maximo=argumentos.maximo,
+    )
+    if argumentos.json:
+        _saida_json([
+            {
+                "pernas": [
+                    {"jogo": list(a.perna.jogo), "selecao": a.perna.selecao,
+                     "probabilidade": a.probabilidade}
+                    for a in c.pernas
+                ],
+                "conjunta": c.conjunta,
+                "odd_justa": c.odd_justa,
+            }
+            for c in sugestoes
+        ])
+        return 0
+    print(relatorio.formata_sugestoes(sugestoes, argumentos.maximo))
+    return 0
+
+
 def comando_backtest(argumentos: argparse.Namespace) -> int:
     partidas = le_partidas(_resolve_base(argumentos.dados))
     desde = date(argumentos.desde, 1, 1) if argumentos.desde else None
@@ -403,6 +520,9 @@ def constroi_parser() -> argparse.ArgumentParser:
             "  python -m agente_esportivo prever Palmeiras Flamengo --odd-casa 2.10\n"
             "  python -m agente_esportivo rodada --arquivo dados/proxima_rodada.csv --banca 500\n"
             "  python -m agente_esportivo odds --arquivo odds.txt --banca 500\n"
+            "  python -m agente_esportivo aovivo Botafogo Palmeiras --placar 1-0 --minuto 70\n"
+            "  python -m agente_esportivo combinar \"Botafogo x Palmeiras: over25 @2.05\" \\\n"
+            "      \"Botafogo x Palmeiras: btts_sim @2.10\" --odd-total 3.40\n"
             "  python -m agente_esportivo backtest --desde 2023\n"
         ),
     )
@@ -459,6 +579,34 @@ def constroi_parser() -> argparse.ArgumentParser:
     p.add_argument("--detalhado", action="store_true")
     p.add_argument("--instrucoes", action="store_true", help="como preparar o navegador")
     p.set_defaults(funcao=comando_odds)
+
+    p = sub.add_parser("aovivo", help="reprecifica um jogo em andamento", parents=[comuns])
+    p.add_argument("mandante")
+    p.add_argument("visitante")
+    p.add_argument("--placar", default="0-0", help="placar atual, ex.: 1-0")
+    p.add_argument("--minuto", type=int, default=0, help="minutos ja jogados")
+    p.add_argument("--acrescimos", type=int, default=0)
+    p.add_argument("--efeito-placar", type=float, default=0.0, dest="efeito_placar",
+                   help="0 a 0,3: quanto quem perde ataca mais (padrao 0 = desligado)")
+    p.add_argument("--odd-casa", type=float, dest="odd_casa")
+    p.add_argument("--odd-empate", type=float, dest="odd_empate")
+    p.add_argument("--odd-fora", type=float, dest="odd_fora")
+    p.add_argument("--odd-over25", type=float, dest="odd_over25")
+    p.add_argument("--odd-under25", type=float, dest="odd_under25")
+    p.set_defaults(funcao=comando_aovivo)
+
+    p = sub.add_parser("combinar", help="avalia uma multipla com correlacao exata", parents=[comuns])
+    p.add_argument("pernas", nargs="+",
+                   metavar="PERNA", help='ex.: "Palmeiras x Flamengo: over25 @1.85"')
+    p.add_argument("--odd-total", type=float, dest="odd_total",
+                   help="odd que a casa ofereceu para a multipla inteira")
+    p.set_defaults(funcao=comando_combinar)
+
+    p = sub.add_parser("sugerir", help="monta combinadas com as selecoes mais provaveis", parents=[comuns])
+    p.add_argument("--arquivo", default="dados/proxima_rodada.csv")
+    p.add_argument("--minimo", type=float, default=0.55, help="probabilidade minima por perna")
+    p.add_argument("--maximo", type=int, default=10)
+    p.set_defaults(funcao=comando_sugerir)
 
     p = sub.add_parser("backtest", help="validacao walk-forward do modelo", parents=[comuns])
     p.add_argument("--aquecimento", type=int, default=380,

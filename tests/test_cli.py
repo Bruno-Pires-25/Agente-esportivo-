@@ -158,3 +158,95 @@ class TestCLI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestComandosAoVivoECombinadas(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.base = base_temporaria()
+
+    def roda(self, *argumentos) -> tuple[int, str, str]:
+        saida, erro = io.StringIO(), io.StringIO()
+        with redirect_stdout(saida), redirect_stderr(erro):
+            codigo = main(["--dados", str(self.base), *argumentos])
+        return codigo, saida.getvalue(), erro.getvalue()
+
+    def test_aovivo(self):
+        codigo, saida, _ = self.roda(
+            "aovivo", "Time A", "Time B", "--placar", "1-0", "--minuto", "70"
+        )
+        self.assertEqual(codigo, 0)
+        self.assertIn("AO VIVO", saida)
+        self.assertIn("20' restantes", saida)
+
+    def test_aovivo_com_odds(self):
+        _, saida, _ = self.roda(
+            "aovivo", "Time A", "Time B", "--placar", "1-0", "--minuto", "80",
+            "--odd-casa", "5.00", "--banca", "200",
+        )
+        self.assertIn("Apostas de valor", saida)
+
+    def test_aovivo_placar_invalido(self):
+        codigo, _, erro = self.roda("aovivo", "Time A", "Time B", "--placar", "abc")
+        self.assertEqual(codigo, 1)
+        self.assertIn("placar invalido", erro)
+
+    def test_aovivo_json(self):
+        _, saida, _ = self.roda(
+            "aovivo", "Time A", "Time B", "--placar", "2-1", "--minuto", "60", "--json"
+        )
+        dados = json.loads(saida)
+        self.assertEqual(dados["estado"]["placar"], "2-1")
+        self.assertAlmostEqual(sum(dados["probabilidades"].values()), 1.0, places=6)
+
+    def test_combinar(self):
+        codigo, saida, _ = self.roda(
+            "combinar", "Time A x Time B: over25 @2.00", "Time C x Time D: C @1.90"
+        )
+        self.assertEqual(codigo, 0)
+        self.assertIn("Probabilidade conjunta", saida)
+        self.assertIn("O que combinar custa", saida)
+
+    def test_combinar_mesmo_jogo_avisa_do_preco(self):
+        _, saida, _ = self.roda(
+            "combinar", "Time A x Time B: over25 @2.00", "Time A x Time B: btts_sim @2.00"
+        )
+        self.assertIn("Correlacao", saida)
+        self.assertIn("preco hipotetico", saida)
+
+    def test_combinar_com_odd_total(self):
+        _, saida, _ = self.roda(
+            "combinar", "Time A x Time B: over25 @2.00", "Time A x Time B: btts_sim @2.00",
+            "--odd-total", "2.75", "--banca", "500",
+        )
+        self.assertIn("Odd oferecida pela casa", saida)
+        self.assertNotIn("preco hipotetico", saida)
+
+    def test_combinar_mercado_fora_do_modelo(self):
+        codigo, _, erro = self.roda("combinar", "Time A x Time B: escanteios_over9 @1.90")
+        self.assertEqual(codigo, 1)
+        self.assertIn("escanteios", erro.lower())
+
+    def test_combinar_formato_invalido(self):
+        codigo, _, erro = self.roda("combinar", "isso nao e uma perna")
+        self.assertEqual(codigo, 1)
+        self.assertIn("Formato", erro)
+
+    def test_combinar_json(self):
+        _, saida, _ = self.roda(
+            "combinar", "Time A x Time B: over25 @2.00", "Time A x Time B: btts_sim @2.00",
+            "--json",
+        )
+        dados = json.loads(saida)
+        self.assertGreater(dados["correlacao"], 1.0)
+        self.assertEqual(len(dados["pernas"]), 2)
+
+    def test_sugerir(self):
+        confrontos = Path(tempfile.mkdtemp()) / "rodada.csv"
+        confrontos.write_text(
+            "mandante,visitante\nTime A,Time B\nTime C,Time D\nTime E,Time F\n",
+            encoding="utf-8",
+        )
+        codigo, saida, _ = self.roda("sugerir", "--arquivo", str(confrontos), "--maximo", "5")
+        self.assertEqual(codigo, 0)
+        self.assertIn("Combinadas sugeridas", saida)

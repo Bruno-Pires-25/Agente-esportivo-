@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import Iterable, Sequence
 
 from .apostas import Aposta
+from .aovivo import AnaliseAoVivo
 from .backtest import Avaliacao
+from .combinadas import Combinada, margem_composta
 from .metricas import curva_de_calibracao
 from .modelos import CASA, EMPATE, FORA
 from .previsao import Agente, Analise
@@ -402,6 +404,171 @@ def formata_backtest(avaliacao: Avaliacao) -> str:
                 "  Amostra pequena demais para concluir qualquer coisa sobre o ROI."
             )
     return "\n".join(partes)
+
+
+# ------------------------------------------------------------------ ao vivo
+def formata_aovivo(analise: AnaliseAoVivo) -> str:
+    estado = analise.estado
+    partes = [titulo(f"AO VIVO  {estado.mandante} {estado.placar} {estado.visitante}")]
+    partes.append(
+        f"{estado.minuto}' jogados  |  {estado.minutos_restantes}' restantes  |  "
+        f"gols ainda esperados: {num(sum(analise.gols_restantes))}"
+    )
+
+    partes.append("\nResultado final (reprecificado agora)")
+    for chave, rotulo in (
+        (CASA, f"Vitoria {estado.mandante}"),
+        (EMPATE, "Empate"),
+        (FORA, f"Vitoria {estado.visitante}"),
+    ):
+        prob = analise.probabilidades[chave]
+        movimento = analise.movimento[chave]
+        seta = "^" if movimento > 0.005 else "v" if movimento < -0.005 else "="
+        partes.append(
+            f"  {rotulo:<28} {barra(prob)} {pct(prob):>6}   odd justa {num(1 / prob) if prob > 0 else '-':>6}"
+            f"   {seta} {pct(movimento, 0):>6} vs pre-jogo"
+        )
+
+    partes.append("\nMercados sobre o placar FINAL")
+    mercados = analise.mercados
+    partes.append(
+        tabela_texto(
+            ["Mercado", "Prob.", "Odd justa"],
+            [
+                [rotulo, pct(mercados[chave]),
+                 num(1 / mercados[chave]) if mercados[chave] > 0 else "-"]
+                for chave, rotulo in (
+                    ("over15", "Mais de 1,5 gols"),
+                    ("over25", "Mais de 2,5 gols"),
+                    ("under25", "Menos de 2,5 gols"),
+                    ("over35", "Mais de 3,5 gols"),
+                    ("btts_sim", "Ambas marcam"),
+                    ("btts_nao", "Ambas nao marcam"),
+                )
+            ],
+        )
+    )
+
+    partes.append("\nPlacares finais mais provaveis")
+    partes.append(
+        "  " + "   ".join(f"{placar} ({pct(prob)})" for placar, prob in analise.placares[:5])
+    )
+    partes.append(
+        "\nAo vivo o agente usa so o modelo de gols: o Elo nao sabe condicionar em"
+        "\nplacar e minuto, entao entrar com ele aqui pioraria a conta. E o modelo nao"
+        "\nve expulsao, lesao nem quem esta pressionando - olhe o jogo, nao so a tela."
+    )
+    return "\n".join(partes)
+
+
+# ---------------------------------------------------------------- combinadas
+def formata_combinada(combinada: Combinada, banca: float = 0.0) -> str:
+    partes = [titulo(f"Combinada de {len(combinada.pernas)} perna(s)")]
+
+    partes.append(
+        tabela_texto(
+            ["Perna", "Prob.", "Odd justa", "Odd oferecida"],
+            [
+                [
+                    avaliada.perna.rotulo,
+                    pct(avaliada.probabilidade),
+                    num(avaliada.odd_justa),
+                    num(avaliada.perna.odd) if avaliada.perna.odd else "-",
+                ]
+                for avaliada in combinada.pernas
+            ],
+            ["<", ">", ">", ">"],
+        )
+    )
+
+    partes.append("\nA combinada inteira")
+    linhas = [
+        ["Probabilidade conjunta (exata)", pct(combinada.conjunta)],
+        ["Odd justa", num(combinada.odd_justa)],
+        ["Multiplicando as pernas (ingenuo)", pct(combinada.ingenua)],
+        ["Odd justa pela conta ingenua", num(combinada.odd_justa_ingenua)],
+    ]
+    hipotetico = combinada.preco_do_produto and combinada.mesmo_jogo and len(combinada.pernas) > 1
+    if combinada.odd_oferecida is not None:
+        linhas.append([
+            "Odd pelo produto das pernas" if combinada.preco_do_produto else "Odd oferecida pela casa",
+            num(combinada.odd_oferecida),
+        ])
+        ev = combinada.ev
+        linhas.append([
+            "Valor esperado" + (" (preco hipotetico)" if hipotetico else ""),
+            ("+" if ev >= 0 else "") + pct(ev),
+        ])
+        if ev > 0 and banca and not hipotetico:
+            linhas.append(
+                ["Stake por Kelly fracionado",
+                 f"{pct(combinada.stake_kelly)} = {num(banca * combinada.stake_kelly)}"]
+            )
+    partes.append(tabela_texto(["Item", "Valor"], linhas, ["<", ">"]))
+    if hipotetico:
+        partes.append(
+            "\nO valor esperado acima NAO e real: ele usa o produto das odds das pernas,"
+            "\nque nenhuma casa paga em multipla de mesmo jogo justamente porque as pernas"
+            "\nsao correlacionadas. Pegue o preco que ela ofereceu e rode de novo com"
+            "\n--odd-total - so esse numero vale alguma coisa."
+        )
+
+    if combinada.mesmo_jogo and len(combinada.pernas) > 1:
+        fator = combinada.correlacao
+        if fator > 1.02:
+            leitura = (
+                f"As pernas se ajudam: a conjunta real e {num(fator, 2)}x maior que o produto."
+                "\nMultiplicar as probabilidades subestimaria a multipla."
+            )
+        elif fator < 0.98:
+            leitura = (
+                f"As pernas brigam entre si: a conjunta real e so {num(fator, 2)}x o produto."
+                "\nMultiplicar as probabilidades superestimaria a multipla - e o erro caro."
+            )
+        else:
+            leitura = "As pernas sao praticamente independentes neste jogo."
+        partes.append("\nCorrelacao (mesmo jogo)")
+        partes.append("  " + leitura.replace("\n", "\n  "))
+        partes.append(
+            "  Nenhuma casa deixa combinar pernas correlacionadas pelo produto das odds."
+        )
+        partes.append(
+            "  Use --odd-total com o preco que ela realmente ofereceu na multipla."
+        )
+
+    partes.append("\nO que combinar custa")
+    partes.append(
+        tabela_texto(
+            ["Pernas", "Margem da casa acumulada (6% por perna)"],
+            [[n, pct(margem_composta(0.06, n))] for n in range(1, len(combinada.pernas) + 2)],
+            ["<", ">"],
+        )
+    )
+    partes.append(
+        "Cada perna multiplica a margem contra voce. Combinada nao cria valor -"
+        "\ne o produto de maior margem da casa. Se uma perna sozinha ja nao tem valor,"
+        "\njuntar outras nao conserta: piora."
+    )
+    return "\n".join(partes)
+
+
+def formata_sugestoes(combinadas, maximo: int = 10) -> str:
+    if not combinadas:
+        return titulo("Combinadas sugeridas") + "\n  Nenhuma selecao passou do corte de probabilidade."
+    linhas = []
+    for combinada in combinadas[:maximo]:
+        linhas.append([
+            " + ".join(a.perna.rotulo for a in combinada.pernas),
+            pct(combinada.conjunta),
+            num(combinada.odd_justa),
+        ])
+    return (
+        titulo("Combinadas sugeridas (as menos improvaveis da rodada)")
+        + "\n"
+        + tabela_texto(["Pernas", "Prob. conjunta", "Odd justa"], linhas, ["<", ">", ">"])
+        + "\n\nSao as selecoes de maior probabilidade, nao as de maior valor: so vale a pena"
+        "\nse a casa pagar ACIMA da odd justa da coluna - o que raramente acontece."
+    )
 
 
 def formata_lista_times(times: Iterable[str]) -> str:

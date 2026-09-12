@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Sequence
 
 from . import apostas as mod_apostas
+from . import selecoes as sel
 from .metricas import Placar, referencia_base
 from .modelos import Partida
 from .previsao import Agente
@@ -162,25 +163,12 @@ def executa(
 
 
 def _resolve(mercado: str, partida: Partida) -> bool | None:
-    """Diz se a selecao venceu, dado o placar final."""
-    total = partida.total_gols
-    tabela = {
-        "C": partida.resultado == "C",
-        "E": partida.resultado == "E",
-        "F": partida.resultado == "F",
-        "1X": partida.resultado in ("C", "E"),
-        "12": partida.resultado in ("C", "F"),
-        "X2": partida.resultado in ("E", "F"),
-        "btts_sim": partida.ambos_marcaram,
-        "btts_nao": not partida.ambos_marcaram,
-    }
-    if mercado in tabela:
-        return tabela[mercado]
-    if mercado.startswith("over") or mercado.startswith("under"):
-        digitos = mercado.replace("over", "").replace("under", "")
-        try:
-            limite = float(f"{digitos[:-1]}.{digitos[-1]}")
-        except (ValueError, IndexError):
-            return None
-        return total > limite if mercado.startswith("over") else total < limite
-    return None
+    """Diz se a selecao venceu, dado o placar final.
+
+    Delega para `selecoes.satisfaz`, que e a mesma tabela de predicados usada
+    pelas combinadas - mercado resolvido de um jeito so no pacote inteiro.
+    """
+    try:
+        return sel.satisfaz(mercado, partida.gols_mandante, partida.gols_visitante)
+    except sel.MercadoDesconhecido:
+        return None

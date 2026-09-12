@@ -44,6 +44,9 @@ over/under, ambas marcam, dupla chance, handicap asiático e placar exato.
 | `odds` | Lê odds da casa de apostas e procura valor |
 | `backtest` | Validação walk-forward contra a temporada real |
 | `exportar` | Reexporta a base no formato canônico |
+| `aovivo` | Reprecifica um jogo em andamento pelo placar e pelo minuto |
+| `combinar` | Avalia uma múltipla com correlação exata entre as pernas |
+| `sugerir` | Monta combinadas com as seleções mais prováveis da rodada |
 | `times` | Lista os times da base |
 
 E `python ferramentas/gerar_painel.py` gera o painel web (veja abaixo).
@@ -205,6 +208,96 @@ reconhecidos.
 
 ---
 
+## Jogo em andamento
+
+Um jogo 1-0 aos 70 minutos não é o jogo que começou 0-0: o que resta é uma
+partida de 20 minutos com o placar já no bolso de alguém. O comando `aovivo`
+reprecifica tudo condicionando no estado atual.
+
+```bash
+python -m agente_esportivo aovivo Botafogo Palmeiras --placar 1-0 --minuto 70 \
+    --odd-casa 1.35 --banca 300
+```
+
+```
+AO VIVO  Botafogo-RJ 1-0 Palmeiras
+70' jogados  |  20' restantes  |  gols ainda esperados: 0,50
+
+  Vitoria Botafogo-RJ   #################...  83,2%   odd justa 1,20   ^ 40% vs pre-jogo
+  Empate                ###.................  14,9%   odd justa 6,72   v -13% vs pre-jogo
+  Vitoria Palmeiras     ....................   1,9%   odd justa 52,44  v -27% vs pre-jogo
+```
+
+Os gols esperados são escalados pelo tempo restante, a matriz é recalculada
+sobre os gols **que ainda vão sair**, e o placar atual entra por cima — então
+"mais de 2,5 gols" com 3-0 aos 50' aparece corretamente como 100%, e "ambas
+marcam" sobe quando só falta um lado marcar.
+
+Ao vivo o agente usa **só o modelo de gols**: o Elo não sabe condicionar em
+placar e minuto, então incluí-lo pioraria a conta. E ele não vê expulsão, lesão
+nem quem está pressionando. O mercado ao vivo se move em segundos e com margem
+maior que o pré-jogo — ler a tela e digitar aqui já é tarde para linhas líquidas.
+
+---
+
+## Combinadas: a conta que quase todo mundo erra
+
+Todos os mercados de gols saem da mesma matriz de placares. Isso permite calcular
+a probabilidade conjunta **exata** de pernas do mesmo jogo — somando as células em
+que todas ganham — em vez de multiplicar probabilidades como se fossem
+independentes, que é o erro padrão.
+
+A diferença não é pequena:
+
+```bash
+python -m agente_esportivo combinar "Botafogo x Palmeiras: over25 @2.05" \
+                                    "Botafogo x Palmeiras: btts_sim @2.10"
+```
+
+| | |
+|---|---|
+| Multiplicando as pernas (ingênuo) | 18,1% → odd justa 5,52 |
+| **Probabilidade conjunta real** | **32,6% → odd justa 3,07** |
+
+"Mais de 2,5 gols" e "ambas marcam" andam juntos: a conjunta real é **1,80×** o
+produto. Multiplicar subestimaria a múltipla em 44%. O inverso também acontece —
+"goleada" e "ambas não marcam" brigam entre si, e ali multiplicar *superestima*
+em três vezes, que é o erro caro.
+
+Por isso nenhuma casa deixa combinar pernas correlacionadas pelo produto das
+odds. Pegue o preço que ela realmente ofereceu e rode com `--odd-total`:
+
+```bash
+python -m agente_esportivo combinar "Botafogo x Palmeiras: over25 @2.05" \
+    "Botafogo x Palmeiras: btts_sim @2.10" --odd-total 2.75
+#   Valor esperado    -10,4%
+```
+
+### Combinar não cria valor — multiplica margem
+
+Cada perna carrega a margem da casa, e elas compõem:
+
+| Pernas | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| Margem acumulada (6% por perna) | 6,0% | 12,4% | 19,1% | 26,2% | 33,8% |
+
+É por isso que a múltipla é o produto que a casa mais empurra. Se uma perna
+sozinha já não tem valor, juntar outras não conserta — piora.
+
+### Seleções disponíveis
+
+`C` `E` `F` · `1X` `12` `X2` · `over05`…`over45` e `under05`…`under45` ·
+`btts_sim` `btts_nao` · `mandante_marca` `visitante_marca` ·
+`mandante_sem_sofrer` `mandante_vence_sem_sofrer` · `placar:2-1`
+
+**Escanteios, chutes no gol, cartões e posse não estão na lista** — o modelo foi
+treinado só com placares finais. Pedir esses mercados devolve um erro explicando
+isso, em vez de um número inventado com cara de precisão. Para cobri-los seria
+preciso uma base com estatísticas por partida (escanteios e finalizações de cada
+jogo), e aí sim modelá-los com o mesmo método.
+
+---
+
 ## Painel web
 
 Além do terminal, o agente gera um painel de página única — sem servidor, sem
@@ -296,12 +389,15 @@ agente_esportivo/
   metricas.py    RPS, log loss, Brier, calibracao
   backtest.py    Validacao walk-forward
   relatorio.py   Saida em texto para o terminal
+  selecoes.py    Mercados como predicados sobre o placar (base das combinadas)
+  aovivo.py      Repreciamento de jogo em andamento
+  combinadas.py  Multiplas com probabilidade conjunta exata
   cli.py         Interface de linha de comando
   coleta/        Odds: texto copiado, HTML salvo ou navegador logado
 painel/          Painel web de pagina unica (template + pagina gerada)
 ferramentas/     Scripts de download da base e de geracao do painel
 dados/           Base do Brasileirao e exemplo de rodada
-tests/           193 testes (unittest, sem dependencias)
+tests/           265 testes (unittest, sem dependencias)
 ```
 
 ## Testes
@@ -321,3 +417,6 @@ python -m unittest discover -s tests -t .
   mas não há fonte pública confiável e gratuita para o Brasileirão.
 - **A base vai até dezembro de 2024.** Rode o script de download para atualizar
   antes de usar em jogos atuais.
+- **Ao vivo é o modo mais arriscado.** O modelo não enxerga expulsão, lesão nem
+  pressão, o mercado se move em segundos e a margem é maior que no pré-jogo.
+  Trate o repreciamento como uma segunda opinião, não como sinal de entrada.

@@ -1,0 +1,11 @@
+data,rodada,mandante,visitante,odd_casa,odd_empate,odd_fora,odd_over25,odd_under25,odd_btts_sim,odd_btts_nao
+2024-12-08,38,Palmeiras,Fluminense,1.55,4.20,6.00,1.90,1.90,2.05,1.75
+2024-12-08,38,Flamengo,Vitoria,1.40,4.80,7.50,1.80,2.00,2.10,1.70
+2024-12-08,38,Internacional,Fortaleza,2.05,3.30,3.70,2.10,1.72,2.00,1.80
+2024-12-08,38,Sao Paulo,Botafogo-RJ,2.60,3.20,2.75,2.15,1.70,1.95,1.85
+2024-12-08,38,Gremio,Corinthians,2.30,3.30,3.10,2.00,1.80,1.90,1.90
+2024-12-08,38,Cruzeiro,Vasco,1.95,3.35,4.00,2.05,1.75,1.98,1.82
+2024-12-08,38,Atletico-MG,Athletico-PR,1.75,3.60,4.60,2.00,1.80,2.00,1.80
+2024-12-08,38,Bahia,Criciuma,1.60,3.90,5.50,1.95,1.85,2.05,1.75
+2024-12-08,38,Bragantino,Cuiaba,1.65,3.80,5.00,1.85,1.95,2.00,1.80
+2024-12-08,38,Juventude,Atletico-GO,1.85,3.40,4.30,2.20,1.66,2.10,1.72

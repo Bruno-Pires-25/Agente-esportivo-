@@ -1,0 +1,818 @@
+<title>Placar Provável</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Chivo:wght@400;600;700&family=Chivo+Mono:wght@400;500;700&display=swap">
+<style>
+  :root{
+    --ground:#E9EBE5;
+    --surface:#F7F8F5;
+    --surface-2:#E1E4DC;
+    --linha:#C9CEC2;
+    --linha-forte:#A9B0A0;
+    --texto:#191F17;
+    --texto-2:#4A5347;
+    --texto-3:#6E776A;
+    --mandante:#B8651A;
+    --empate:#79838E;
+    --visitante:#15628F;
+    --valor:#2F7D4F;
+    --contra:#A33B2C;
+    --destaque:#B8651A;
+    --grade:rgba(25,31,23,.10);
+    --sombra:0 1px 2px rgba(25,31,23,.08);
+    --calor:21,98,143;
+    color-scheme:light dark;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#10151B;
+      --surface:#171E27;
+      --surface-2:#1F2833;
+      --linha:#2C3742;
+      --linha-forte:#42505E;
+      --texto:#E8ECEF;
+      --texto-2:#A9B4BF;
+      --texto-3:#7D8893;
+      --mandante:#D2862F;
+      --empate:#69737F;
+      --visitante:#59A3D6;
+      --valor:#4FA873;
+      --contra:#D3705C;
+      --destaque:#D2862F;
+      --grade:rgba(232,236,239,.10);
+      --sombra:0 1px 2px rgba(0,0,0,.35);
+      --calor:210,134,47;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#10151B;
+    --surface:#171E27;
+    --surface-2:#1F2833;
+    --linha:#2C3742;
+    --linha-forte:#42505E;
+    --texto:#E8ECEF;
+    --texto-2:#A9B4BF;
+    --texto-3:#7D8893;
+    --mandante:#D2862F;
+    --empate:#69737F;
+    --visitante:#59A3D6;
+    --valor:#4FA873;
+    --contra:#D3705C;
+    --destaque:#D2862F;
+    --grade:rgba(232,236,239,.10);
+    --sombra:0 1px 2px rgba(0,0,0,.35);
+    --calor:210,134,47;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--ground);color:var(--texto);
+    font-family:"Chivo","Helvetica Neue",Arial,sans-serif;
+    font-size:15px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .pagina{max-width:1080px;margin:0 auto;padding-block:28px 56px;padding-left:20px;padding-right:20px}
+  h1,h2,h3{margin:0;text-wrap:balance}
+  .display{font-family:"Anton","Arial Narrow",sans-serif;font-weight:400;letter-spacing:.01em;text-transform:uppercase}
+  .mono{font-family:"Chivo Mono",ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+  .eyebrow{
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--texto-3);
+    font-weight:700;
+  }
+
+  /* ---------- cabecalho ---------- */
+  header.topo{
+    display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;
+    gap:16px;padding-bottom:18px;border-bottom:2px solid var(--texto);margin-bottom:26px;
+  }
+  header.topo > div:first-child{flex:1 1 380px;min-width:0}
+  header.topo h1{font-size:clamp(34px,6vw,52px);line-height:.95}
+  header.topo h1 .destaque{color:var(--destaque)}
+  .subtitulo{color:var(--texto-2);font-size:14px;max-width:46ch;margin-top:8px}
+  .selo{
+    text-align:right;font-size:12px;color:var(--texto-3);line-height:1.7;
+  }
+  .selo b{color:var(--texto-2);font-weight:600}
+
+  /* ---------- painel ---------- */
+  .painel{background:var(--surface);border:1px solid var(--linha);box-shadow:var(--sombra)}
+  .painel + .painel{margin-top:22px}
+  .painel-cabeca{
+    display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    padding:14px 18px;border-bottom:1px solid var(--linha);
+  }
+  .painel-cabeca h2{font-size:15px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+  .painel-corpo{padding:18px}
+
+  /* ---------- seletor de confronto ---------- */
+  .confronto{
+    display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:end;
+    padding:18px;background:var(--surface-2);border-bottom:1px solid var(--linha);
+  }
+  .campo{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .campo label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--texto-3);font-weight:700}
+  select,input{
+    font-family:inherit;font-size:15px;color:var(--texto);background:var(--surface);
+    border:1px solid var(--linha-forte);border-radius:2px;padding:9px 10px;width:100%;
+  }
+  select:focus-visible,input:focus-visible,button:focus-visible{
+    outline:2px solid var(--destaque);outline-offset:2px;
+  }
+  .trocar{
+    font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;
+    background:var(--surface);color:var(--texto-2);border:1px solid var(--linha-forte);
+    border-radius:2px;padding:9px 12px;white-space:nowrap;
+  }
+  .trocar:hover{background:var(--ground);color:var(--texto)}
+
+  /* ---------- resultado ---------- */
+  .resumo{
+    display:flex;flex-wrap:wrap;gap:10px 26px;align-items:baseline;
+    padding:0 18px 14px;border-bottom:1px solid var(--linha);
+  }
+  .resumo .item{font-size:13px;color:var(--texto-2)}
+  .resumo .item b{font-family:"Chivo Mono",monospace;color:var(--texto);font-weight:700;font-size:15px}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+    letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:2px;
+    border:1px solid currentColor;
+  }
+  .chip.alta{color:var(--valor)}
+  .chip.media{color:var(--destaque)}
+  .chip.baixa{color:var(--contra)}
+
+  .barras{display:flex;flex-direction:column;gap:12px;padding:18px}
+  .barra-linha{display:grid;grid-template-columns:minmax(96px,1.1fr) 1fr auto;gap:14px;align-items:center}
+  .barra-nome{font-size:13px;font-weight:600;color:var(--texto-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .barra-trilho{height:22px;background:var(--grade);border-radius:2px;overflow:hidden}
+  .barra-fill{height:100%;border-radius:0 3px 3px 0;transition:width .35s cubic-bezier(.4,0,.2,1)}
+  .barra-valor{font-family:"Chivo Mono",monospace;font-variant-numeric:tabular-nums;font-size:14px;font-weight:700;min-width:118px;text-align:right;color:var(--texto)}
+  .barra-valor span{color:var(--texto-3);font-weight:400;font-size:12px}
+
+  /* ---------- grade de placares ---------- */
+  .placares{display:grid;grid-template-columns:auto auto;gap:10px;align-items:start;justify-content:start}
+  .rotulo-lateral{
+    writing-mode:vertical-rl;transform:rotate(180deg);font-size:10px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--texto-3);font-weight:700;align-self:center;
+  }
+  .grade{display:grid;grid-template-columns:22px repeat(6,1fr);gap:2px;width:100%;max-width:430px}
+  .celula{
+    aspect-ratio:1.25;display:flex;align-items:center;justify-content:center;
+    font-family:"Chivo Mono",monospace;font-size:11px;font-variant-numeric:tabular-nums;
+    background:var(--grade);color:var(--texto-2);border-radius:2px;cursor:default;
+    transition:transform .12s ease;
+  }
+  .celula:hover{transform:scale(1.08);z-index:2;position:relative}
+  .celula.eixo{background:none;color:var(--texto-3);font-weight:700;font-size:10px;cursor:default}
+  .celula.modal{box-shadow:inset 0 0 0 2px var(--texto)}
+  .legenda-calor{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11px;color:var(--texto-3);margin-top:10px;max-width:430px}
+  .rampa{display:flex;gap:2px}
+  .rampa i{width:18px;height:10px;border-radius:1px;display:block}
+
+  /* ---------- tabelas ---------- */
+  .rolagem{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{padding:7px 8px;text-align:right;border-bottom:1px solid var(--linha);white-space:nowrap}
+  th{
+    font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--texto-3);
+    font-weight:700;border-bottom:1px solid var(--linha-forte);
+  }
+  th:first-child,td:first-child{text-align:left}
+  #tabela-classificacao td:nth-child(2),#tabela-classificacao th:nth-child(2){text-align:left}
+  td.num{font-family:"Chivo Mono",monospace;font-variant-numeric:tabular-nums}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr.destacado td{background:var(--surface-2)}
+  .forma{font-family:"Chivo Mono",monospace;letter-spacing:.12em;font-size:12px}
+  .forma .V{color:var(--valor);font-weight:700}
+  .forma .D{color:var(--contra)}
+  .forma .E{color:var(--texto-3)}
+
+  .duas{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:22px}
+  .mini-barra{display:inline-block;height:8px;border-radius:1px;vertical-align:middle;margin-right:6px}
+
+  /* ---------- odds ---------- */
+  .odds-grade{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+  .veredito{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+  .aposta{
+    display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:center;
+    padding:10px 12px;background:var(--surface-2);border-left:3px solid var(--valor);
+  }
+  .aposta .nome{font-weight:600;font-size:14px}
+  .aposta .dado{font-family:"Chivo Mono",monospace;font-size:13px;color:var(--texto-2);text-align:right}
+  .aposta .dado b{display:block;color:var(--texto);font-size:14px}
+  .sem-valor{
+    padding:12px;background:var(--surface-2);border-left:3px solid var(--empate);
+    font-size:14px;color:var(--texto-2);
+  }
+  .nota{font-size:12px;color:var(--texto-3);margin-top:12px;max-width:70ch}
+
+  /* ---------- ficha do modelo ---------- */
+  .ficha{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+  .ficha .metrica .rotulo{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--texto-3);font-weight:700}
+  .ficha .metrica .valor{font-family:"Chivo Mono",monospace;font-size:26px;font-weight:700;line-height:1.2;margin-top:4px}
+  .ficha .metrica .apoio{font-size:12px;color:var(--texto-2)}
+  .aviso{
+    margin-top:22px;padding:14px 16px;border:1px solid var(--linha-forte);
+    background:var(--surface);font-size:13px;color:var(--texto-2);
+  }
+  .aviso b{color:var(--texto)}
+
+  .dica{
+    position:fixed;pointer-events:none;z-index:50;opacity:0;transition:opacity .12s;
+    background:var(--texto);color:var(--ground);font-size:12px;padding:6px 9px;border-radius:2px;
+    font-family:"Chivo Mono",monospace;white-space:nowrap;
+  }
+  .dica.visivel{opacity:1}
+
+  footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--linha);font-size:12px;color:var(--texto-3)}
+  footer a{color:var(--texto-2)}
+
+  @media (max-width:860px){
+    .duas{grid-template-columns:1fr}
+    .ficha{grid-template-columns:repeat(2,1fr)}
+    .odds-grade{grid-template-columns:repeat(3,1fr)}
+  }
+  @media (max-width:560px){
+    .confronto{grid-template-columns:1fr;align-items:stretch}
+    .barra-linha{grid-template-columns:1fr;gap:4px}
+    .barra-valor{text-align:left;min-width:0}
+    .odds-grade{grid-template-columns:repeat(2,1fr)}
+    .aposta{grid-template-columns:1fr 1fr;gap:8px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important;animation:none!important}
+  }
+</style>
+
+<div class="pagina">
+  <header class="topo">
+    <div>
+      <h1 class="display">Placar <span class="destaque">Provável</span></h1>
+      <p class="subtitulo">
+        Modelo de gols do Brasileirão Série A: escolha o confronto e veja a distribuição
+        completa de placares, os mercados que saem dela e onde a odd da casa paga acima
+        do que deveria.
+      </p>
+    </div>
+    <div class="selo mono">
+      <div>Base: <b id="meta-partidas">—</b> partidas</div>
+      <div>Até <b id="meta-data">—</b></div>
+      <div>Elenco da temporada <b>2024</b></div>
+    </div>
+  </header>
+
+  <section class="painel">
+    <div class="confronto">
+      <div class="campo">
+        <label for="mandante">Mandante</label>
+        <select id="mandante"></select>
+      </div>
+      <button class="trocar" id="trocar" type="button">⇄ Inverter mando</button>
+      <div class="campo">
+        <label for="visitante">Visitante</label>
+        <select id="visitante"></select>
+      </div>
+    </div>
+
+    <div class="resumo">
+      <div class="item">Gols esperados <b id="xg">—</b></div>
+      <div class="item">Placar mais provável <b id="placar-modal">—</b></div>
+      <div class="item">Total esperado <b id="total-gols">—</b></div>
+      <div class="item">Confiança na estimativa <span class="chip" id="confianca">—</span></div>
+    </div>
+
+    <div class="barras" id="barras"></div>
+
+    <div class="painel-corpo" style="border-top:1px solid var(--linha)">
+      <div class="eyebrow" style="margin-bottom:12px">Distribuição de placares</div>
+      <div class="placares">
+        <div class="rotulo-lateral">Gols do mandante</div>
+        <div>
+          <div class="grade" id="grade"></div>
+          <div class="legenda-calor">
+            <span>Gols do visitante →</span>
+            <span style="margin-left:auto">menos provável</span>
+            <span class="rampa" id="rampa"></span>
+            <span>mais provável</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="painel">
+    <div class="painel-cabeca">
+      <h2>Mercados</h2>
+      <span class="eyebrow">Odd justa = 1 ÷ probabilidade, sem margem</span>
+    </div>
+    <div class="painel-corpo">
+      <div class="rolagem">
+        <table id="tabela-mercados">
+          <thead>
+            <tr><th>Mercado</th><th>Probabilidade</th><th>Odd justa</th><th>Mercado</th><th>Probabilidade</th><th>Odd justa</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="painel">
+    <div class="painel-cabeca">
+      <h2>Onde está o valor</h2>
+      <span class="eyebrow">Odds de exemplo — troque pelas da sua casa</span>
+    </div>
+    <div class="painel-corpo">
+      <div class="odds-grade">
+        <div class="campo">
+          <label for="odd-casa">Casa</label>
+          <input id="odd-casa" class="mono" type="number" step="0.01" min="1.01" inputmode="decimal" value="2.30">
+        </div>
+        <div class="campo">
+          <label for="odd-empate">Empate</label>
+          <input id="odd-empate" class="mono" type="number" step="0.01" min="1.01" inputmode="decimal" value="3.20">
+        </div>
+        <div class="campo">
+          <label for="odd-fora">Fora</label>
+          <input id="odd-fora" class="mono" type="number" step="0.01" min="1.01" inputmode="decimal" value="3.10">
+        </div>
+        <div class="campo">
+          <label for="odd-over">+2,5 gols</label>
+          <input id="odd-over" class="mono" type="number" step="0.01" min="1.01" inputmode="decimal" value="2.05">
+        </div>
+        <div class="campo">
+          <label for="odd-under">−2,5 gols</label>
+          <input id="odd-under" class="mono" type="number" step="0.01" min="1.01" inputmode="decimal" value="1.78">
+        </div>
+      </div>
+      <div class="odds-grade" style="margin-top:12px;grid-template-columns:repeat(2,1fr);max-width:360px">
+        <div class="campo">
+          <label for="banca">Banca (R$)</label>
+          <input id="banca" class="mono" type="number" step="10" min="0" value="500">
+        </div>
+        <div class="campo">
+          <label for="margem">Margem da casa</label>
+          <input id="margem" class="mono" type="text" value="—" readonly tabindex="-1">
+        </div>
+      </div>
+      <div class="veredito" id="veredito"></div>
+      <p class="nota">
+        A odd embute a margem da casa, então ela é removida (método da potência) antes de
+        qualquer comparação. Stake por Kelly fracionado a 25%, limitado a 5% da banca —
+        Kelly cheio só funciona se a probabilidade estimada estiver certa, e ela nunca está.
+      </p>
+    </div>
+  </section>
+
+  <div class="duas">
+    <section class="painel">
+      <div class="painel-cabeca"><h2>Classificação 2024</h2></div>
+      <div class="painel-corpo rolagem">
+        <table id="tabela-classificacao">
+          <thead><tr><th>#</th><th>Time</th><th>P</th><th>J</th><th>SG</th><th>Forma</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="painel">
+      <div class="painel-cabeca">
+        <h2>Força do elenco</h2>
+        <span class="eyebrow">1,00 = média da liga</span>
+      </div>
+      <div class="painel-corpo rolagem">
+        <table id="tabela-forca">
+          <thead><tr><th>Time</th><th>Elo</th><th>Ataque</th><th>Defesa</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="painel" style="margin-top:22px">
+    <div class="painel-cabeca">
+      <h2>Ficha do modelo</h2>
+      <span class="eyebrow" id="m-amostra">Validação walk-forward</span>
+    </div>
+    <div class="painel-corpo">
+      <div class="ficha">
+        <div class="metrica">
+          <div class="rotulo">RPS do modelo</div>
+          <div class="valor" id="m-rps">—</div>
+          <div class="apoio" id="m-rps-apoio">—</div>
+        </div>
+        <div class="metrica">
+          <div class="rotulo">Ganho sobre a base</div>
+          <div class="valor" id="m-ganho" style="color:var(--valor)">—</div>
+          <div class="apoio">É o que dá pra extrair só de placares</div>
+        </div>
+        <div class="metrica">
+          <div class="rotulo">Acerto do favorito</div>
+          <div class="valor" id="m-acerto">—</div>
+          <div class="apoio">O favorito perde mais da metade dos jogos</div>
+        </div>
+        <div class="metrica">
+          <div class="rotulo">Calibração</div>
+          <div class="valor" id="m-calibracao">—</div>
+          <div class="apoio" id="m-calibracao-apoio">—</div>
+        </div>
+      </div>
+      <div class="aviso">
+        <b>O que este modelo não sabe.</b> Ele lê apenas placares: nada de escalação,
+        lesão, suspensão, viagem de Libertadores ou time misto na antepenúltima rodada.
+        Time recém-promovido é chute — sem histórico na Série A, entra como média da liga.
+        As casas trabalham com margem de 5% a 8%; EV positivo é estimativa, não promessa.
+        Se apostar deixou de ser diversão, ligue <b>0800 000 0121</b> (CVV).
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span id="rodape-fonte">—</span> Modelo Dixon-Coles com decaimento de
+    <span id="rodape-meia-vida">—</span> dias, combinado a Elo com peso
+    <span id="rodape-peso">—</span> — parâmetros calibrados em validação walk-forward
+    separada por temporada.
+  </footer>
+</div>
+
+<div class="dica mono" id="dica"></div>
+
+<script>
+/* ===== dados gerados por ferramentas/gerar_painel.py ===== */
+const DADOS = {"meta":{"ultima_partida":"2024-12-08","partidas_base":1632,"temporada":2024,"fonte":"Dados das súmulas da CBF (via adaoduque/Brasileirao_Dataset)"},"modelo":{"mu":1.21009,"mando":1.36231,"rho":0.0,"peso_elo":0.4,"meia_vida":730.0,"elo_mando":65.0,"elo_empate_base":0.29,"elo_empate_escala":320.0},"mando_liga":{"jogos":380,"vitorias_casa":0.4737,"empates":0.2658,"vitorias_fora":0.2605,"gols_casa":1.4105,"gols_fora":1.0342},"times":[{"nome":"Botafogo-RJ","pos":1,"pts":79,"j":38,"v":23,"e":10,"d":5,"gp":59,"gc":29,"sg":30,"elo":1686.9,"ataque":1.2118,"defesa":0.6364,"jogos_base":125,"forma":"EEVVV","casa_pts":41,"casa_j":19,"fora_pts":38,"fora_j":19},{"nome":"Palmeiras","pos":2,"pts":73,"j":38,"v":22,"e":7,"d":9,"gp":60,"gc":33,"sg":27,"elo":1662.2,"ataque":1.395,"defesa":0.5966,"jogos_base":164,"forma":"VVDVD","casa_pts":38,"casa_j":19,"fora_pts":35,"fora_j":19},{"nome":"Flamengo","pos":3,"pts":70,"j":38,"v":20,"e":10,"d":8,"gp":61,"gc":42,"sg":19,"elo":1643.8,"ataque":1.3904,"defesa":0.7197,"jogos_base":164,"forma":"VEVVE","casa_pts":38,"casa_j":19,"fora_pts":32,"fora_j":19},{"nome":"Fortaleza","pos":4,"pts":68,"j":38,"v":19,"e":11,"d":8,"gp":53,"gc":39,"sg":14,"elo":1599.7,"ataque":1.0975,"defesa":0.7385,"jogos_base":163,"forma":"EEDDV","casa_pts":47,"casa_j":19,"fora_pts":21,"fora_j":19},{"nome":"Internacional","pos":5,"pts":65,"j":38,"v":18,"e":11,"d":9,"gp":53,"gc":36,"sg":17,"elo":1629.9,"ataque":1.1835,"defesa":0.6696,"jogos_base":163,"forma":"VVDDD","casa_pts":38,"casa_j":19,"fora_pts":27,"fora_j":19},{"nome":"Sao Paulo","pos":6,"pts":59,"j":38,"v":17,"e":8,"d":13,"gp":53,"gc":43,"sg":10,"elo":1563.0,"ataque":1.0596,"defesa":0.7265,"jogos_base":163,"forma":"EEDDD","casa_pts":39,"casa_j":19,"fora_pts":20,"fora_j":19},{"nome":"Corinthians","pos":7,"pts":56,"j":38,"v":15,"e":11,"d":12,"gp":54,"gc":45,"sg":9,"elo":1614.2,"ataque":1.1251,"defesa":0.7537,"jogos_base":163,"forma":"VVVVV","casa_pts":38,"casa_j":19,"fora_pts":18,"fora_j":19},{"nome":"Bahia","pos":8,"pts":53,"j":38,"v":15,"e":8,"d":15,"gp":49,"gc":49,"sg":0,"elo":1505.9,"ataque":1.1198,"defesa":0.8785,"jogos_base":125,"forma":"DEVDV","casa_pts":36,"casa_j":19,"fora_pts":17,"fora_j":19},{"nome":"Cruzeiro","pos":9,"pts":52,"j":38,"v":14,"e":10,"d":14,"gp":43,"gc":41,"sg":2,"elo":1519.8,"ataque":0.8972,"defesa":0.6322,"jogos_base":76,"forma":"DEEDV","casa_pts":35,"casa_j":19,"fora_pts":17,"fora_j":19},{"nome":"Vasco","pos":10,"pts":50,"j":38,"v":14,"e":8,"d":16,"gp":43,"gc":56,"sg":-13,"elo":1505.8,"ataque":0.9815,"defesa":0.9145,"jogos_base":88,"forma":"DDEVV","casa_pts":35,"casa_j":19,"fora_pts":15,"fora_j":19},{"nome":"Vitoria","pos":11,"pts":47,"j":38,"v":13,"e":8,"d":17,"gp":45,"gc":52,"sg":-7,"elo":1528.6,"ataque":1.0624,"defesa":0.8756,"jogos_base":38,"forma":"VEVEE","casa_pts":27,"casa_j":19,"fora_pts":20,"fora_j":19},{"nome":"Atletico-MG","pos":12,"pts":47,"j":38,"v":11,"e":14,"d":13,"gp":47,"gc":54,"sg":-7,"elo":1526.3,"ataque":1.1688,"defesa":0.7313,"jogos_base":163,"forma":"EEDDV","casa_pts":28,"casa_j":19,"fora_pts":19,"fora_j":19},{"nome":"Fluminense","pos":13,"pts":46,"j":38,"v":12,"e":10,"d":16,"gp":33,"gc":39,"sg":-6,"elo":1543.7,"ataque":1.0326,"defesa":0.7154,"jogos_base":163,"forma":"EEEVV","casa_pts":29,"casa_j":19,"fora_pts":17,"fora_j":19},{"nome":"Gremio","pos":14,"pts":45,"j":38,"v":12,"e":9,"d":17,"gp":44,"gc":50,"sg":-6,"elo":1522.8,"ataque":1.1931,"defesa":0.9159,"jogos_base":126,"forma":"EEVED","casa_pts":29,"casa_j":19,"fora_pts":16,"fora_j":19},{"nome":"Juventude","pos":15,"pts":45,"j":38,"v":11,"e":12,"d":15,"gp":48,"gc":59,"sg":-11,"elo":1437.5,"ataque":0.9503,"defesa":1.0287,"jogos_base":114,"forma":"EEVVD","casa_pts":30,"casa_j":19,"fora_pts":15,"fora_j":19},{"nome":"Bragantino","pos":16,"pts":44,"j":38,"v":10,"e":14,"d":14,"gp":44,"gc":48,"sg":-4,"elo":1516.4,"ataque":1.1059,"defesa":0.8046,"jogos_base":163,"forma":"EDEVV","casa_pts":31,"casa_j":19,"fora_pts":13,"fora_j":19},{"nome":"Athletico-PR","pos":17,"pts":42,"j":38,"v":11,"e":9,"d":18,"gp":40,"gc":46,"sg":-6,"elo":1474.8,"ataque":1.0247,"defesa":0.7836,"jogos_base":163,"forma":"VEEDD","casa_pts":25,"casa_j":19,"fora_pts":17,"fora_j":19},{"nome":"Criciuma","pos":18,"pts":38,"j":38,"v":9,"e":11,"d":18,"gp":42,"gc":61,"sg":-19,"elo":1437.3,"ataque":0.9756,"defesa":1.0475,"jogos_base":38,"forma":"DEDDD","casa_pts":23,"casa_j":19,"fora_pts":15,"fora_j":19},{"nome":"Atletico-GO","pos":19,"pts":30,"j":38,"v":7,"e":9,"d":22,"gp":29,"gc":58,"sg":-29,"elo":1396.8,"ataque":0.77,"defesa":0.9149,"jogos_base":125,"forma":"DDEVD","casa_pts":20,"casa_j":19,"fora_pts":10,"fora_j":19},{"nome":"Cuiaba","pos":20,"pts":30,"j":38,"v":6,"e":12,"d":20,"gp":29,"gc":49,"sg":-20,"elo":1434.0,"ataque":0.756,"defesa":0.7355,"jogos_base":152,"forma":"DEDDD","casa_pts":14,"casa_j":19,"fora_pts":16,"fora_j":19}],"backtest":{"n":1246,"rps":0.2121,"rps_base":0.2217,"acuracia":0.4848,"log_loss":1.0293,"ganho":0.0432,"calibracao":[[0.3762,0.3728,279],[0.4848,0.4843,762],[0.6558,0.6418,201],[0.8201,0.5,4]]}};
+/* ===== fim dos dados ===== */
+
+const T = Object.fromEntries(DADOS.times.map(t => [t.nome, t]));
+const M = DADOS.modelo;
+const MAX = 10;
+
+const LOG_FAT = [0];
+for (let k = 1; k <= MAX + 1; k++) LOG_FAT[k] = LOG_FAT[k - 1] + Math.log(k);
+
+function pmf(k, media){
+  if (media <= 0) return k === 0 ? 1 : 0;
+  return Math.exp(-media + k * Math.log(media) - LOG_FAT[k]);
+}
+function tau(i, j, lc, lf, rho){
+  if (i === 0 && j === 0) return 1 - lc * lf * rho;
+  if (i === 0 && j === 1) return 1 + lc * rho;
+  if (i === 1 && j === 0) return 1 + lf * rho;
+  if (i === 1 && j === 1) return 1 - rho;
+  return 1;
+}
+function expectativa(casa, fora){
+  const a = T[casa], b = T[fora];
+  return [
+    Math.max(M.mu * a.ataque * b.defesa * M.mando, 1e-4),
+    Math.max(M.mu * b.ataque * a.defesa, 1e-4)
+  ];
+}
+function matriz(casa, fora){
+  const [lc, lf] = expectativa(casa, fora);
+  const linhas = [];
+  let total = 0;
+  for (let i = 0; i <= MAX; i++){
+    const linha = [];
+    for (let j = 0; j <= MAX; j++){
+      const v = Math.max(pmf(i, lc) * pmf(j, lf) * tau(i, j, lc, lf, M.rho), 0);
+      linha.push(v); total += v;
+    }
+    linhas.push(linha);
+  }
+  return total > 0 ? linhas.map(l => l.map(v => v / total)) : linhas;
+}
+function probPoisson(mat){
+  let C = 0, E = 0, F = 0;
+  mat.forEach((linha, i) => linha.forEach((v, j) => { i > j ? C += v : i === j ? E += v : F += v; }));
+  return {C, E, F};
+}
+function probElo(casa, fora){
+  const dif = T[casa].elo + M.elo_mando - T[fora].elo;
+  const esperado = 1 / (1 + Math.pow(10, -dif / 400));
+  const E = M.elo_empate_base * Math.exp(-Math.pow(dif / M.elo_empate_escala, 2));
+  let C = Math.max(esperado - E / 2, 1e-4);
+  let F = Math.max(1 - esperado - E / 2, 1e-4);
+  const soma = C + E + F;
+  return {C: C / soma, E: E / soma, F: F / soma};
+}
+function combina(elo, poisson){
+  const bruto = {
+    C: M.peso_elo * elo.C + (1 - M.peso_elo) * poisson.C,
+    E: M.peso_elo * elo.E + (1 - M.peso_elo) * poisson.E,
+    F: M.peso_elo * elo.F + (1 - M.peso_elo) * poisson.F
+  };
+  const soma = bruto.C + bruto.E + bruto.F;
+  return {C: bruto.C / soma, E: bruto.E / soma, F: bruto.F / soma};
+}
+function mercados(mat){
+  const porTotal = {};
+  let ambas = 0;
+  mat.forEach((linha, i) => linha.forEach((v, j) => {
+    porTotal[i + j] = (porTotal[i + j] || 0) + v;
+    if (i > 0 && j > 0) ambas += v;
+  }));
+  const saida = {btts_sim: ambas, btts_nao: 1 - ambas, gols: 0};
+  [0.5, 1.5, 2.5, 3.5, 4.5].forEach(limite => {
+    let acima = 0;
+    for (const gols in porTotal) if (Number(gols) > limite) acima += porTotal[gols];
+    const chave = String(limite).replace('.', '');
+    saida['over' + chave] = acima;
+    saida['under' + chave] = 1 - acima;
+  });
+  for (const gols in porTotal) saida.gols += Number(gols) * porTotal[gols];
+  return saida;
+}
+function confianca(elo, poisson, jogosA, jogosB){
+  const tv = 0.5 * (Math.abs(elo.C - poisson.C) + Math.abs(elo.E - poisson.E) + Math.abs(elo.F - poisson.F));
+  const util = Math.max(0, (1 - tv - 0.80) / 0.20);
+  const dados = Math.min(Math.min(jogosA, jogosB) / 20, 1);
+  return Math.max(0, Math.min(1, 0.6 * util + 0.4 * dados));
+}
+
+/* remocao de margem pelo metodo da potencia: acha k com sum(p^k) = 1 */
+function semMargem(brutas){
+  let baixo = 0.2, alto = 3.0;
+  for (let i = 0; i < 100; i++){
+    const k = (baixo + alto) / 2;
+    if (brutas.reduce((s, p) => s + Math.pow(p, k), 0) > 1) baixo = k; else alto = k;
+  }
+  const k = (baixo + alto) / 2;
+  const ajustadas = brutas.map(p => Math.pow(p, k));
+  const soma = ajustadas.reduce((s, p) => s + p, 0);
+  return ajustadas.map(p => p / soma);
+}
+
+const pct = (v, casas = 1) => (v * 100).toFixed(casas).replace('.', ',') + '%';
+const num = (v, casas = 2) => v.toFixed(casas).replace('.', ',');
+
+/* ---------- montagem ---------- */
+const nomes = DADOS.times.map(t => t.nome).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+const selMandante = document.getElementById('mandante');
+const selVisitante = document.getElementById('visitante');
+for (const sel of [selMandante, selVisitante]){
+  sel.innerHTML = nomes.map(n => `<option value="${n}">${n}</option>`).join('');
+}
+selMandante.value = 'Botafogo-RJ';
+selVisitante.value = 'Palmeiras';
+
+document.getElementById('meta-partidas').textContent = DADOS.meta.partidas_base.toLocaleString('pt-BR');
+document.getElementById('meta-data').textContent =
+  new Date(DADOS.meta.ultima_partida + 'T12:00:00').toLocaleDateString('pt-BR');
+
+const dica = document.getElementById('dica');
+function mostraDica(evento, texto){
+  dica.textContent = texto;
+  dica.classList.add('visivel');
+  const margem = 14;
+  dica.style.left = Math.min(evento.clientX + margem, window.innerWidth - dica.offsetWidth - 8) + 'px';
+  dica.style.top = Math.max(evento.clientY - dica.offsetHeight - margem, 8) + 'px';
+}
+function escondeDica(){ dica.classList.remove('visivel'); }
+
+function corDoCalor(intensidade){
+  return `rgba(var(--calor-rgb), ${(0.06 + 0.94 * intensidade).toFixed(3)})`;
+}
+
+function desenha(){
+  const casa = selMandante.value, fora = selVisitante.value;
+  if (casa === fora){
+    const alternativo = nomes.find(n => n !== casa);
+    selVisitante.value = alternativo;
+    return desenha();
+  }
+
+  const mat = matriz(casa, fora);
+  const poisson = probPoisson(mat);
+  const elo = probElo(casa, fora);
+  const probs = combina(elo, poisson);
+  const merc = mercados(mat);
+  const [lc, lf] = expectativa(casa, fora);
+  const conf = confianca(elo, poisson, T[casa].jogos_base, T[fora].jogos_base);
+
+  /* resumo */
+  document.getElementById('xg').textContent = `${num(lc)} – ${num(lf)}`;
+  document.getElementById('total-gols').textContent = num(merc.gols);
+
+  let modal = {p: -1, i: 0, j: 0};
+  mat.forEach((linha, i) => linha.forEach((v, j) => { if (v > modal.p) modal = {p: v, i, j}; }));
+  document.getElementById('placar-modal').textContent = `${modal.i}–${modal.j}`;
+
+  const chip = document.getElementById('confianca');
+  const nivel = conf >= 0.7 ? 'alta' : conf >= 0.45 ? 'media' : 'baixa';
+  chip.className = 'chip ' + nivel;
+  chip.textContent = `${nivel === 'media' ? 'média' : nivel} · ${pct(conf, 0)}`;
+
+  /* barras 1X2 — mandante e visitante sao os polos, empate e o meio neutro */
+  const linhas = [
+    {rotulo: casa, chave: 'C', cor: 'var(--mandante)'},
+    {rotulo: 'Empate', chave: 'E', cor: 'var(--empate)'},
+    {rotulo: fora, chave: 'F', cor: 'var(--visitante)'}
+  ];
+  const maior = Math.max(probs.C, probs.E, probs.F);
+  document.getElementById('barras').innerHTML = linhas.map(l => `
+    <div class="barra-linha">
+      <span class="barra-nome" title="${l.rotulo}">${l.rotulo}</span>
+      <span class="barra-trilho"><span class="barra-fill" style="width:${(probs[l.chave] / maior * 100).toFixed(1)}%;background:${l.cor}"></span></span>
+      <span class="barra-valor">${pct(probs[l.chave])} <span>· odd justa ${num(1 / probs[l.chave])}</span></span>
+    </div>`).join('');
+
+  /* grade de placares 0–5 */
+  const limite = 5;
+  let pico = 0;
+  for (let i = 0; i <= limite; i++) for (let j = 0; j <= limite; j++) pico = Math.max(pico, mat[i][j]);
+  const celulas = ['<div class="celula eixo"></div>'];
+  for (let j = 0; j <= limite; j++) celulas.push(`<div class="celula eixo">${j}</div>`);
+  for (let i = 0; i <= limite; i++){
+    celulas.push(`<div class="celula eixo">${i}</div>`);
+    for (let j = 0; j <= limite; j++){
+      const p = mat[i][j];
+      const intensidade = Math.pow(p / pico, 0.65);
+      const marca = (i === modal.i && j === modal.j) ? ' modal' : '';
+      const claro = intensidade > 0.62;
+      celulas.push(
+        `<div class="celula${marca}" style="background:rgba(var(--calor),${(0.05 + 0.9 * intensidade).toFixed(3)});` +
+        `color:${claro ? 'var(--surface)' : 'var(--texto-2)'}" ` +
+        `data-placar="${i}–${j}" data-prob="${pct(p)}">${(p * 100).toFixed(1).replace(".", ",")}</div>`
+      );
+    }
+  }
+  document.getElementById('grade').innerHTML = celulas.join('');
+  document.getElementById('rampa').innerHTML = [0.1, 0.3, 0.55, 0.8, 1]
+    .map(v => `<i style="background:rgba(var(--calor),${(0.05 + 0.9 * v).toFixed(2)})"></i>`).join('');
+
+  document.querySelectorAll('.celula[data-placar]').forEach(celula => {
+    celula.addEventListener('mousemove', e =>
+      mostraDica(e, `${casa} ${celula.dataset.placar} ${fora} · ${celula.dataset.prob}`));
+    celula.addEventListener('mouseleave', escondeDica);
+  });
+
+  /* mercados */
+  const pares = [
+    [['Mais de 1,5 gols', merc.over15], ['Menos de 1,5 gols', merc.under15]],
+    [['Mais de 2,5 gols', merc.over25], ['Menos de 2,5 gols', merc.under25]],
+    [['Mais de 3,5 gols', merc.over35], ['Menos de 3,5 gols', merc.under35]],
+    [['Ambas marcam', merc.btts_sim], ['Ambas não marcam', merc.btts_nao]],
+    [['Dupla chance 1X', probs.C + probs.E], ['Dupla chance X2', probs.E + probs.F]],
+    [['Dupla chance 12', probs.C + probs.F], ['Placar 0–0 ou 1–1', mat[0][0] + mat[1][1]]]
+  ];
+  document.querySelector('#tabela-mercados tbody').innerHTML = pares.map(([a, b]) => `
+    <tr>
+      <td>${a[0]}</td><td class="num">${pct(a[1])}</td><td class="num">${num(1 / a[1])}</td>
+      <td>${b[0]}</td><td class="num">${pct(b[1])}</td><td class="num">${num(1 / b[1])}</td>
+    </tr>`).join('');
+
+  destacaTabelas(casa, fora);
+  avaliaOdds(probs, merc);
+}
+
+/* ---------- valor ---------- */
+function avaliaOdds(probs, merc){
+  const campos = {
+    C: document.getElementById('odd-casa'),
+    E: document.getElementById('odd-empate'),
+    F: document.getElementById('odd-fora'),
+    over25: document.getElementById('odd-over'),
+    under25: document.getElementById('odd-under')
+  };
+  const odds = {};
+  for (const chave in campos){
+    const valor = parseFloat(campos[chave].value);
+    if (valor > 1) odds[chave] = valor;
+  }
+  const banca = Math.max(parseFloat(document.getElementById('banca').value) || 0, 0);
+  const campoMargem = document.getElementById('margem');
+  const alvo = document.getElementById('veredito');
+
+  if (!Object.keys(odds).length){
+    campoMargem.value = '—';
+    alvo.innerHTML = `<div class="sem-valor">Digite as odds da sua casa para comparar com o modelo.
+      Sem elas, a página mostra só a probabilidade — que é o que interessa antes de olhar preço.</div>`;
+    return;
+  }
+
+  const grupos = [['C', 'E', 'F'], ['over25', 'under25']];
+  const justas = {};
+  let margemTexto = '—';
+  grupos.forEach(grupo => {
+    const presentes = grupo.filter(c => c in odds);
+    if (presentes.length >= 2){
+      const brutas = presentes.map(c => 1 / odds[c]);
+      const limpas = semMargem(brutas);
+      presentes.forEach((c, i) => justas[c] = limpas[i]);
+      if (grupo[0] === 'C'){
+        margemTexto = pct(brutas.reduce((s, p) => s + p, 0) - 1);
+      }
+    } else {
+      presentes.forEach(c => justas[c] = 1 / odds[c]);
+    }
+  });
+  campoMargem.value = margemTexto;
+
+  const modelo = {C: probs.C, E: probs.E, F: probs.F, over25: merc.over25, under25: merc.under25};
+  const nomesMercado = {
+    C: 'Vitória do mandante', E: 'Empate', F: 'Vitória do visitante',
+    over25: 'Mais de 2,5 gols', under25: 'Menos de 2,5 gols'
+  };
+
+  const achados = [];
+  for (const chave in odds){
+    const p = modelo[chave];
+    const ev = p * odds[chave] - 1;
+    if (ev < 0.03) continue;
+    const fracao = Math.min(Math.max((p * odds[chave] - 1) / (odds[chave] - 1), 0) * 0.25, 0.05);
+    achados.push({chave, odd: odds[chave], p, ev, fracao, mercado: justas[chave] ?? 1 / odds[chave]});
+  }
+  achados.sort((a, b) => b.ev - a.ev);
+
+  if (!achados.length){
+    alvo.innerHTML = `<div class="sem-valor"><b>Nenhuma aposta de valor.</b>
+      As odds oferecidas estão iguais ou piores que a probabilidade do modelo —
+      o certo aqui é não apostar.</div>`;
+    return;
+  }
+  alvo.innerHTML = achados.map(a => `
+    <div class="aposta">
+      <span class="nome">${nomesMercado[a.chave]}<br>
+        <span style="font-size:12px;color:var(--texto-3);font-weight:400">
+          modelo ${pct(a.p)} · mercado ${pct(a.mercado)}</span></span>
+      <span class="dado">odd<b>${num(a.odd)}</b></span>
+      <span class="dado">justa<b>${num(1 / a.p)}</b></span>
+      <span class="dado" style="color:var(--valor)">EV<b style="color:var(--valor)">+${pct(a.ev)}</b></span>
+      <span class="dado" style="grid-column:1/-1;text-align:left;border-top:1px solid var(--linha);padding-top:8px">
+        Stake sugerida: <b style="display:inline">${pct(a.fracao)} da banca${banca ? ' = R$ ' + num(banca * a.fracao) : ''}</b>
+      </span>
+    </div>`).join('');
+}
+
+/* ---------- tabelas fixas ---------- */
+function formaHtml(sequencia){
+  return sequencia.split('').map(l => `<span class="${l}">${l}</span>`).join('');
+}
+function montaTabelas(){
+  document.querySelector('#tabela-classificacao tbody').innerHTML = DADOS.times.map(t => `
+    <tr data-time="${t.nome}">
+      <td class="num">${t.pos}</td>
+      <td>${t.nome}</td>
+      <td class="num"><b>${t.pts}</b></td>
+      <td class="num">${t.j}</td>
+      <td class="num">${t.sg > 0 ? '+' : ''}${t.sg}</td>
+      <td class="forma">${formaHtml(t.forma)}</td>
+    </tr>`).join('');
+
+  const porForca = [...DADOS.times].sort((a, b) => b.elo - a.elo);
+  const maiorAtaque = Math.max(...porForca.map(t => t.ataque));
+  const maiorDefesa = Math.max(...porForca.map(t => t.defesa));
+  document.querySelector('#tabela-forca tbody').innerHTML = porForca.map(t => `
+    <tr data-time="${t.nome}">
+      <td>${t.nome}</td>
+      <td class="num">${Math.round(t.elo)}</td>
+      <td class="num"><i class="mini-barra" style="width:${(t.ataque / maiorAtaque * 34).toFixed(0)}px;background:var(--mandante)"></i>${num(t.ataque)}</td>
+      <td class="num"><i class="mini-barra" style="width:${(t.defesa / maiorDefesa * 34).toFixed(0)}px;background:var(--visitante)"></i>${num(t.defesa)}</td>
+    </tr>`).join('');
+}
+function destacaTabelas(casa, fora){
+  document.querySelectorAll('tr[data-time]').forEach(linha => {
+    linha.classList.toggle('destacado', linha.dataset.time === casa || linha.dataset.time === fora);
+  });
+}
+
+/* ---------- eventos ---------- */
+selMandante.addEventListener('change', desenha);
+selVisitante.addEventListener('change', desenha);
+document.getElementById('trocar').addEventListener('click', () => {
+  const antigo = selMandante.value;
+  selMandante.value = selVisitante.value;
+  selVisitante.value = antigo;
+  desenha();
+});
+['odd-casa', 'odd-empate', 'odd-fora', 'odd-over', 'odd-under', 'banca'].forEach(id => {
+  document.getElementById(id).addEventListener('input', desenha);
+});
+
+/* ---------- ficha do modelo ---------- */
+function preencheFicha(){
+  const b = DADOS.backtest;
+  document.getElementById('m-rps').textContent = num(b.rps, 4);
+  document.getElementById('m-rps-apoio').textContent =
+    `Base da liga: ${num(b.rps_base, 4)} — menor é melhor`;
+  document.getElementById('m-ganho').textContent = pct(b.ganho);
+  document.getElementById('m-acerto').textContent = pct(b.acuracia);
+  document.getElementById('m-amostra').textContent =
+    `Validação walk-forward, ${b.n.toLocaleString('pt-BR')} partidas`;
+
+  /* a faixa mais populosa e a que melhor mostra se o modelo cumpre o que promete */
+  const faixa = b.calibracao.reduce((a, c) => (c[2] > a[2] ? c : a), b.calibracao[0]);
+  document.getElementById('m-calibracao').textContent =
+    `${num(faixa[0] * 100, 1)} → ${num(faixa[1] * 100, 1)}`;
+  document.getElementById('m-calibracao-apoio').textContent =
+    `Quando diz ${pct(faixa[0])}, acontece ${pct(faixa[1])}`;
+
+  document.getElementById('rodape-fonte').textContent = DADOS.meta.fonte + '.';
+  document.getElementById('rodape-meia-vida').textContent = String(M.meia_vida);
+  document.getElementById('rodape-peso').textContent = num(M.peso_elo, 2);
+}
+
+montaTabelas();
+preencheFicha();
+desenha();
+</script>

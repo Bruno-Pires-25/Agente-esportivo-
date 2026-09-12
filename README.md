@@ -46,6 +46,8 @@ over/under, ambas marcam, dupla chance, handicap asiático e placar exato.
 | `exportar` | Reexporta a base no formato canônico |
 | `times` | Lista os times da base |
 
+E `python ferramentas/gerar_painel.py` gera o painel web (veja abaixo).
+
 Qualquer comando aceita `--json` para consumo por outro programa.
 
 ---
@@ -203,6 +205,37 @@ reconhecidos.
 
 ---
 
+## Painel web
+
+Além do terminal, o agente gera um painel de página única — sem servidor, sem
+dependências, funciona até offline:
+
+```bash
+python ferramentas/gerar_painel.py          # grava painel/painel.html
+```
+
+Abra o arquivo no navegador (ou publique onde quiser). Nele dá para escolher
+qualquer confronto entre os times da temporada, inverter o mando, ver a matriz de
+placares inteira, digitar as odds da sua casa e receber EV e stake na hora.
+
+O truque é que **a página não traz previsões prontas**: ela embute só os
+parâmetros do modelo — μ, fator mando, ρ, ataque/defesa e Elo de cada time, cerca
+de 5 KB — e refaz a conta em JavaScript. São 380 confrontos possíveis; guardar
+todos seria pesado e engessado.
+
+Como o mesmo cálculo existe em dois lugares, `tests/test_painel.py` compara os
+parâmetros embutidos com os do agente treinado e checa que todo `id` consultado
+pelo script existe no HTML — o jeito clássico de uma página dessas quebrar em
+silêncio e mostrar traços no lugar dos números.
+
+- `painel/modelo.html` — o template (contém o marcador `__DADOS__`)
+- `painel/painel.html` — a página gerada, pronta para abrir
+
+Os números da ficha do modelo (RPS, calibração, tamanho da amostra) também saem
+do backtest na hora da geração, então não envelhecem quando você atualizar a base.
+
+---
+
 ## Apostas de valor
 
 Odd não é probabilidade: ela embute a margem da casa. Comparar a probabilidade
@@ -265,9 +298,10 @@ agente_esportivo/
   relatorio.py   Saida em texto para o terminal
   cli.py         Interface de linha de comando
   coleta/        Odds: texto copiado, HTML salvo ou navegador logado
-ferramentas/     Script de download da base
+painel/          Painel web de pagina unica (template + pagina gerada)
+ferramentas/     Scripts de download da base e de geracao do painel
 dados/           Base do Brasileirao e exemplo de rodada
-tests/           181 testes (unittest, sem dependencias)
+tests/           193 testes (unittest, sem dependencias)
 ```
 
 ## Testes

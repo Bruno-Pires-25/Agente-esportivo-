@@ -17,6 +17,7 @@ from . import apostas as mod_apostas
 from . import poisson as mod_poisson
 from . import tabela as mod_tabela
 from .elo import Elo
+from .estatisticas import ModeloContagem, RegistroEstatistica, ajusta_todos
 from .modelos import CASA, EMPATE, FORA, Confronto, Partida, times_de
 from .poisson import ModeloPoisson
 
@@ -113,7 +114,9 @@ class Agente:
     meia_vida_dias: float = MEIA_VIDA_PADRAO
     janela_forma: int = 5
     elo: Elo = field(default_factory=Elo)
+    registros_estatisticas: list[RegistroEstatistica] | None = None
     poisson: ModeloPoisson = field(init=False, repr=False, default=None)  # type: ignore[assignment]
+    estatisticas: dict[str, ModeloContagem] = field(default_factory=dict)
     referencia: date | None = None
 
     def __post_init__(self) -> None:
@@ -134,6 +137,10 @@ class Agente:
         self.poisson = ModeloPoisson(meia_vida_dias=self.meia_vida_dias).ajusta(
             self.partidas, referencia=self.referencia
         )
+        if self.registros_estatisticas:
+            self.estatisticas = ajusta_todos(
+                self.registros_estatisticas, meia_vida_dias=self.meia_vida_dias
+            )
         return self
 
     # ------------------------------------------------------------ consultas

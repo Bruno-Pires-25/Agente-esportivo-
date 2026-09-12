@@ -47,6 +47,7 @@ over/under, ambas marcam, dupla chance, handicap asiático e placar exato.
 | `aovivo` | Reprecifica um jogo em andamento pelo placar e pelo minuto |
 | `combinar` | Avalia uma múltipla com correlação exata entre as pernas |
 | `sugerir` | Monta combinadas com as seleções mais prováveis da rodada |
+| `estatisticas` | Escanteios, chutes e cartões esperados (`--validar` mede cada um) |
 | `times` | Lista os times da base |
 
 E `python ferramentas/gerar_painel.py` gera o painel web (veja abaixo).
@@ -298,6 +299,84 @@ jogo), e aí sim modelá-los com o mesmo método.
 
 ---
 
+## Escanteios, chutes e cartões — e por que eles não valem aposta
+
+A mesma fonte pública traz um arquivo de estatísticas por partida. Ele é baixado
+junto:
+
+```bash
+python ferramentas/baixar_brasileirao.py --desde 2015 \
+    --saida dados/brasileirao_2015_2024.csv \
+    --estatisticas dados/estatisticas_2015_2023.csv
+```
+
+O arquivo original tem 2003–2024, mas **só 2015–2023 tem dado de verdade**:
+antes disso está tudo zerado (ninguém anotava), chutes no alvo só existem a
+partir de 2017, e o arquivo parou de ser atualizado em 2023. O conversor
+descarta cada uma dessas faixas em vez de tratar zero-não-coletado como
+zero-aconteceu — é a diferença entre um modelo e uma ficção.
+
+### A distribuição certa não é Poisson
+
+Escanteios têm variância 1,70× a média (chutes, 1,95×). Uma Poisson, que assume
+variância igual à média, erra feio justamente nas pontas — onde vivem os
+mercados de over. Por isso a média sai por quasi-Poisson e a distribuição é
+**Binomial Negativa**, com a dispersão estimada dos resíduos.
+
+A diferença aparece na cauda, testada em 2023:
+
+| Total de escanteios > 14,5 | |
+|---|---|
+| Observado | 14,7% |
+| **Binomial Negativa** | **15,0%** |
+| Poisson | 10,9% |
+
+### O resultado que importa
+
+```bash
+python -m agente_esportivo estatisticas --validar
+```
+
+| Estatística | Brier modelo | Brier base | Ganho |
+|---|---|---|---|
+| **Escanteios** | 0,2147 | 0,2114 | **−1,6%** |
+| Cartões amarelos | 0,1970 | 0,1950 | −1,0% |
+| Chutes | 0,2037 | 0,2062 | +1,2% |
+| **Chutes no alvo** | 0,2108 | 0,2170 | **+2,8%** |
+| Faltas | 0,2323 | 0,2364 | +1,7% |
+
+A referência não é zero: é a **frequência histórica da linha na liga**. E o
+veredito é desconfortável: o modelo de escanteios é *pior* que chutar a média da
+liga. A distribuição está bem calibrada, mas a parte que depende dos times não
+acrescenta nada — escanteio é mais função de estado de jogo e estilo de arbitragem
+do que de força de time.
+
+Por isso todo relatório de escanteios sai com o aviso colado:
+
+```
+>> SEM SINAL: o modelo de escanteios e PIOR que a frequencia historica
+   da liga (-1,6%). Nao use para apostar.
+```
+
+Os números continuam disponíveis — você decide. Mas eles saem com a ficha
+corrida junto, e um teste fixa esse resultado para que ninguém o esqueça.
+
+### Misturar gol com escanteio é legítimo
+
+Medido nas 3.394 partidas: a correlação entre total de gols e total de escanteios
+é **−0,04**, e a conjunta real fica em 0,98× o produto. Ou seja, essas pernas
+são praticamente independentes — ao contrário de duas pernas de gol no mesmo
+jogo, que se correlacionam forte. O relatório distingue os dois casos.
+
+```bash
+python -m agente_esportivo combinar \
+    "Flamengo x Santos: over25 @1.90" \
+    "Flamengo x Santos: escanteios_over95 @1.85" \
+    --odd-total 3.20 --estatisticas dados/estatisticas_2015_2023.csv
+```
+
+---
+
 ## Painel web
 
 Além do terminal, o agente gera um painel de página única — sem servidor, sem
@@ -390,6 +469,8 @@ agente_esportivo/
   backtest.py    Validacao walk-forward
   relatorio.py   Saida em texto para o terminal
   selecoes.py    Mercados como predicados sobre o placar (base das combinadas)
+  ajuste.py      Ajuste de ataque/defesa compartilhado por gols e contagens
+  estatisticas.py Escanteios/chutes/cartoes com Binomial Negativa e validacao
   aovivo.py      Repreciamento de jogo em andamento
   combinadas.py  Multiplas com probabilidade conjunta exata
   cli.py         Interface de linha de comando
@@ -397,7 +478,7 @@ agente_esportivo/
 painel/          Painel web de pagina unica (template + pagina gerada)
 ferramentas/     Scripts de download da base e de geracao do painel
 dados/           Base do Brasileirao e exemplo de rodada
-tests/           265 testes (unittest, sem dependencias)
+tests/           296 testes (unittest, sem dependencias)
 ```
 
 ## Testes
@@ -415,6 +496,8 @@ python -m unittest discover -s tests -t .
   como média da liga. A confiança reportada cai, mas a estimativa é fraca mesmo.
 - **Sem gols esperados (xG).** Placar é sinal ruidoso; xG melhoraria a estimativa,
   mas não há fonte pública confiável e gratuita para o Brasileirão.
+- **Escanteio e cartão não têm sinal** nesta base — medido, não suposto. Os
+  números existem e estão calibrados, mas não batem a frequência histórica.
 - **A base vai até dezembro de 2024.** Rode o script de download para atualizar
   antes de usar em jogos atuais.
 - **Ao vivo é o modo mais arriscado.** O modelo não enxerga expulsão, lesão nem

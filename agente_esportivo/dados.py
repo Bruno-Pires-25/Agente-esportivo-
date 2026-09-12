@@ -12,6 +12,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Iterable, Iterator, Sequence
 
+from .estatisticas import ESTATISTICAS, RegistroEstatistica
 from .modelos import Confronto, Partida
 
 # nome canonico -> apelidos aceitos no cabecalho
@@ -217,6 +218,64 @@ def le_confrontos(caminho: str | Path) -> list[Confronto]:
     if not confrontos:
         raise ErroDeDados(f"{caminho}: nenhum confronto valido encontrado")
     return confrontos
+
+
+
+def le_estatisticas(caminho: str | Path) -> list[RegistroEstatistica]:
+    """Le o CSV de estatisticas por partida (escanteios, chutes, cartoes...).
+
+    Colunas ausentes ou vazias sao simplesmente omitidas do registro, e nao
+    viram zero: "nao coletado" e "aconteceu zero vez" sao coisas diferentes, e
+    confundi-las treina o modelo em ficcao.
+    """
+    caminho = Path(caminho)
+    if not caminho.exists():
+        raise ErroDeDados(f"arquivo nao encontrado: {caminho}")
+
+    with caminho.open(encoding="utf-8-sig", newline="") as arquivo:
+        leitor = csv.DictReader(arquivo)
+        if not leitor.fieldnames:
+            raise ErroDeDados(f"{caminho}: arquivo sem cabecalho")
+        mapa = _mapa_de_colunas(leitor.fieldnames)
+        faltando = [c for c in ("data", "mandante", "visitante") if c not in mapa]
+        if faltando:
+            raise ErroDeDados(
+                f"{caminho}: colunas obrigatorias ausentes: {', '.join(faltando)}"
+            )
+
+        registros: list[RegistroEstatistica] = []
+        for numero, linha in enumerate(leitor, start=2):
+            mandante = (linha.get(mapa["mandante"]) or "").strip()
+            visitante = (linha.get(mapa["visitante"]) or "").strip()
+            if not mandante or not visitante:
+                continue
+            valores: dict[str, tuple[int, int]] = {}
+            for estatistica in ESTATISTICAS:
+                casa = (linha.get(f"{estatistica}_mandante") or "").strip()
+                fora = (linha.get(f"{estatistica}_visitante") or "").strip()
+                if not casa or not fora:
+                    continue
+                try:
+                    valores[estatistica] = (int(float(casa)), int(float(fora)))
+                except ValueError:
+                    continue
+            if not valores:
+                continue
+            registros.append(
+                RegistroEstatistica(
+                    data=analisa_data(linha[mapa["data"]]),
+                    mandante=mandante,
+                    visitante=visitante,
+                    valores=valores,
+                    competicao=(linha.get(mapa.get("competicao", ""), "") or "desconhecida").strip()
+                    or "desconhecida",
+                )
+            )
+
+    if not registros:
+        raise ErroDeDados(f"{caminho}: nenhuma estatistica valida encontrada")
+    registros.sort(key=lambda r: (r.data, r.mandante))
+    return registros
 
 
 def escreve_partidas(caminho: str | Path, partidas: Iterable[Partida]) -> None:

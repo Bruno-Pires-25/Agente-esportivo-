@@ -99,6 +99,8 @@ class Combinada:
     por_jogo: dict[tuple[str, str], float] = field(default_factory=dict)
     preco_do_produto: bool = False
     """True quando a odd usada e o produto das pernas, e nao um preco real da casa."""
+    sem_sinal: tuple[str, ...] = ()
+    """Estatisticas cujo modelo nao bate a frequencia historica - leia com desconfianca."""
 
     @property
     def odd_justa(self) -> float:
@@ -161,6 +163,7 @@ def avalia(agente, pernas, odd_total: float | None = None) -> Combinada:
     conjunta = 1.0
     ingenua = 1.0
     por_jogo: dict[tuple[str, str], float] = {}
+    sem_sinal: set[str] = set()
 
     for perna in pernas:
         try:
@@ -173,19 +176,61 @@ def avalia(agente, pernas, odd_total: float | None = None) -> Combinada:
         )
 
     for jogo, do_jogo in grupos.items():
-        matriz = agente.poisson.matriz(*jogo)
-        try:
-            probabilidade = sel.probabilidade_conjunta(
-                matriz, [p.selecao for p in do_jogo]
-            )
-        except sel.MercadoDesconhecido as erro:
-            raise ErroDeCombinada(str(erro)) from erro
-        por_jogo[jogo] = probabilidade
-        conjunta *= probabilidade
+        de_gols: list[Perna] = []
+        de_contagem: dict[str, list[tuple[Perna, str, float]]] = {}
         for perna in do_jogo:
-            individual = sel.probabilidade(matriz, perna.selecao)
-            ingenua *= individual
-            avaliadas.append(PernaAvaliada(perna, individual))
+            leitura = sel.analisa_contagem(perna.selecao)
+            if leitura is None:
+                de_gols.append(perna)
+            else:
+                estatistica, tipo, linha = leitura
+                if estatistica not in agente.estatisticas:
+                    raise ErroDeCombinada(
+                        f"'{perna.selecao}' precisa da base de estatisticas por partida. "
+                        "Rode com --estatisticas dados/estatisticas_2015_2023.csv "
+                        "(gere com ferramentas/baixar_brasileirao.py --estatisticas ...)."
+                    )
+                de_contagem.setdefault(estatistica, []).append((perna, tipo, linha))
+
+        probabilidade_do_jogo = 1.0
+
+        if de_gols:
+            matriz = agente.poisson.matriz(*jogo)
+            try:
+                parcial = sel.probabilidade_conjunta(matriz, [p.selecao for p in de_gols])
+            except sel.MercadoDesconhecido as erro:
+                raise ErroDeCombinada(str(erro)) from erro
+            probabilidade_do_jogo *= parcial
+            for perna in de_gols:
+                individual = sel.probabilidade(matriz, perna.selecao)
+                ingenua *= individual
+                avaliadas.append(PernaAvaliada(perna, individual))
+
+        # Pernas de contagem: exato dentro da mesma estatistica; entre
+        # estatisticas diferentes (e contra os gols) multiplicamos, o que os
+        # dados sustentam - gols x escanteios tem correlacao -0,04 no
+        # Brasileirao, conjunta/produto de 0,98.
+        for estatistica, itens in de_contagem.items():
+            modelo = agente.estatisticas[estatistica]
+            if not modelo.tem_sinal_conhecido:
+                sem_sinal.add(estatistica)
+            distribuicao = modelo.distribuicao_total(*jogo)
+            parcial = sum(
+                p for valor, p in enumerate(distribuicao)
+                if all(
+                    valor > linha if tipo == "over" else valor < linha
+                    for _, tipo, linha in itens
+                )
+            )
+            probabilidade_do_jogo *= parcial
+            for perna, tipo, linha in itens:
+                acima = sum(p for valor, p in enumerate(distribuicao) if valor > linha)
+                individual = acima if tipo == "over" else 1.0 - acima
+                ingenua *= individual
+                avaliadas.append(PernaAvaliada(perna, individual))
+
+        por_jogo[jogo] = probabilidade_do_jogo
+        conjunta *= probabilidade_do_jogo
 
     oferecida = odd_total
     preco_do_produto = False
@@ -201,6 +246,7 @@ def avalia(agente, pernas, odd_total: float | None = None) -> Combinada:
         odd_oferecida=oferecida,
         por_jogo=por_jogo,
         preco_do_produto=preco_do_produto,
+        sem_sinal=tuple(sorted(sem_sinal)),
     )
 
 

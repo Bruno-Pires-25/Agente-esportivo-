@@ -20,7 +20,10 @@ from .backtest import executa
 from .combinadas import ErroDeCombinada, analisa_perna, avalia, sugere_combinadas
 from .coleta import ColetaIndisponivel, de_arquivo
 from .coleta.navegador import INSTRUCOES, coleta_odds
-from .dados import ErroDeDados, escreve_partidas, filtra, le_confrontos, le_partidas
+from .dados import (
+    ErroDeDados, escreve_partidas, filtra, le_confrontos, le_estatisticas, le_partidas,
+)
+from .estatisticas import LINHAS, NOMES as NOMES_ESTATISTICAS, valida
 from .modelos import Confronto, Partida
 from .previsao import Agente, Analise
 
@@ -50,12 +53,25 @@ def carrega_agente(argumentos: argparse.Namespace) -> Agente:
         partidas = list(filtra(partidas, desde=desde, ate=ate))
         if not partidas:
             raise ErroDeDados("nenhuma partida no periodo pedido")
-    return Agente(
+    registros = None
+    caminho_estatisticas = getattr(argumentos, "estatisticas", None)
+    if caminho_estatisticas:
+        registros = le_estatisticas(_resolve_base(caminho_estatisticas))
+
+    agente = Agente(
         partidas,
         peso_elo=argumentos.peso_elo,
         meia_vida_dias=argumentos.meia_vida,
         janela_forma=argumentos.janela_forma,
+        registros_estatisticas=registros,
     )
+    # cada modelo de contagem carrega o proprio veredito de validacao
+    for estatistica, modelo in agente.estatisticas.items():
+        try:
+            modelo.validacao = valida(registros, estatistica)
+        except ValueError:
+            modelo.validacao = None
+    return agente
 
 
 def _odds_dos_argumentos(argumentos: argparse.Namespace) -> dict[str, float]:
@@ -430,6 +446,50 @@ def comando_sugerir(argumentos: argparse.Namespace) -> int:
     return 0
 
 
+
+def comando_estatisticas(argumentos: argparse.Namespace) -> int:
+    if not getattr(argumentos, "estatisticas", None):
+        argumentos.estatisticas = "dados/estatisticas_2015_2023.csv"
+    agente = carrega_agente(argumentos)
+    if not agente.estatisticas:
+        print("erro: nenhuma estatistica aproveitavel na base", file=sys.stderr)
+        return 1
+
+    if argumentos.validar:
+        linhas = []
+        for estatistica, modelo in agente.estatisticas.items():
+            v = modelo.validacao
+            if v is None:
+                continue
+            linhas.append([
+                NOMES_ESTATISTICAS.get(estatistica, estatistica),
+                v.n_treino, v.n_teste,
+                relatorio.num(v.brier_modelo, 4), relatorio.num(v.brier_base, 4),
+                ("+" if v.ganho >= 0 else "") + relatorio.pct(v.ganho),
+                "sim" if v.tem_sinal else "NAO",
+            ])
+        print(relatorio.titulo("Validacao dos modelos de contagem"))
+        print(relatorio.tabela_texto(
+            ["Estatistica", "Treino", "Teste", "Brier modelo", "Brier base", "Ganho", "Sinal?"],
+            linhas, ["<", ">", ">", ">", ">", ">", ">"],
+        ))
+        print(
+            "\nA referencia nao e zero: e a frequencia historica da linha na liga."
+            "\nModelo que nao bate essa frequencia nao tem nada a dizer - e o apostador"
+            "\nainda paga a margem da casa por cima."
+        )
+        return 0
+
+    if not argumentos.mandante or not argumentos.visitante:
+        print("erro: informe mandante e visitante (ou use --validar)", file=sys.stderr)
+        return 2
+
+    mandante = agente.valida_time(argumentos.mandante)
+    visitante = agente.valida_time(argumentos.visitante)
+    print(relatorio.formata_estatisticas(agente, mandante, visitante))
+    return 0
+
+
 def comando_backtest(argumentos: argparse.Namespace) -> int:
     partidas = le_partidas(_resolve_base(argumentos.dados))
     desde = date(argumentos.desde, 1, 1) if argumentos.desde else None
@@ -487,6 +547,8 @@ def _opcoes_comuns(parser: argparse.ArgumentParser, *, com_padroes: bool) -> Non
         return valor if com_padroes else argparse.SUPPRESS
 
     parser.add_argument("--dados", default=padrao(BASE_PADRAO), help="CSV de partidas")
+    parser.add_argument("--estatisticas", default=padrao(None),
+                        help="CSV de escanteios/chutes/cartoes por partida")
     parser.add_argument("--desde", type=int, default=padrao(None),
                         help="considerar apenas a partir deste ano")
     parser.add_argument("--ate", type=int, default=padrao(None),
@@ -607,6 +669,13 @@ def constroi_parser() -> argparse.ArgumentParser:
     p.add_argument("--minimo", type=float, default=0.55, help="probabilidade minima por perna")
     p.add_argument("--maximo", type=int, default=10)
     p.set_defaults(funcao=comando_sugerir)
+
+    p = sub.add_parser("estatisticas", help="escanteios, chutes e cartoes esperados", parents=[comuns])
+    p.add_argument("mandante", nargs="?")
+    p.add_argument("visitante", nargs="?")
+    p.add_argument("--validar", action="store_true",
+                   help="mede cada modelo de contagem contra a frequencia historica")
+    p.set_defaults(funcao=comando_estatisticas)
 
     p = sub.add_parser("backtest", help="validacao walk-forward do modelo", parents=[comuns])
     p.add_argument("--aquecimento", type=int, default=380,

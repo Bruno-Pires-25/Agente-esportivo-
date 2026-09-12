@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Iterable, Sequence
 
+from .ajuste import Observacao, ajusta_forcas
 from .modelos import CASA, EMPATE, FORA, Partida
 
 MAX_GOLS = 10
@@ -101,75 +102,23 @@ class ModeloPoisson:
         pesos = self.pesos(partidas, self.referencia)
 
         times = sorted({t for p in partidas for t in p.times})
-        self.ataque = {t: 1.0 for t in times}
-        self.defesa = {t: 1.0 for t in times}
         self.jogos = {t: 0 for t in times}
         for partida in partidas:
             for time in partida.times:
                 self.jogos[time] += 1
 
-        peso_total = sum(pesos)
-        gols_totais = sum(w * p.total_gols for w, p in zip(pesos, partidas))
-        self.mu = gols_totais / (2.0 * peso_total) if peso_total else 1.35
-
-        # gols marcados/sofridos ponderados por time
-        marcados = {t: 0.0 for t in times}
-        sofridos = {t: 0.0 for t in times}
-        gols_casa_pond = 0.0
-        for peso, partida in zip(pesos, partidas):
-            marcados[partida.mandante] += peso * partida.gols_mandante
-            marcados[partida.visitante] += peso * partida.gols_visitante
-            sofridos[partida.mandante] += peso * partida.gols_visitante
-            sofridos[partida.visitante] += peso * partida.gols_mandante
-            gols_casa_pond += peso * partida.gols_mandante
-
-        for _ in range(self.iteracoes):
-            anterior = (dict(self.ataque), dict(self.defesa), self.mando)
-
-            # --- ataque
-            denom = {t: 0.0 for t in times}
-            for peso, partida in zip(pesos, partidas):
-                denom[partida.mandante] += (
-                    peso * self.mu * self.defesa[partida.visitante] * self.mando
-                )
-                denom[partida.visitante] += peso * self.mu * self.defesa[partida.mandante]
-            for time in times:
-                if denom[time] > 0:
-                    self.ataque[time] = max(marcados[time] / denom[time], 1e-3)
-
-            # --- defesa
-            denom = {t: 0.0 for t in times}
-            for peso, partida in zip(pesos, partidas):
-                denom[partida.mandante] += peso * self.mu * self.ataque[partida.visitante]
-                denom[partida.visitante] += (
-                    peso * self.mu * self.ataque[partida.mandante] * self.mando
-                )
-            for time in times:
-                if denom[time] > 0:
-                    self.defesa[time] = max(sofridos[time] / denom[time], 1e-3)
-
-            # --- fator mando
-            base = sum(
-                peso * self.mu * self.ataque[p.mandante] * self.defesa[p.visitante]
-                for peso, p in zip(pesos, partidas)
-            )
-            if base > 0:
-                self.mando = max(min(gols_casa_pond / base, 3.0), 0.5)
-
-            # normaliza: ataque medio = 1 (o produto ataque*defesa fica intacto)
-            media = sum(self.ataque.values()) / len(times)
-            if media > 0:
-                for time in times:
-                    self.ataque[time] /= media
-                    self.defesa[time] *= media
-
-            delta = max(
-                max(abs(self.ataque[t] - anterior[0][t]) for t in times),
-                max(abs(self.defesa[t] - anterior[1][t]) for t in times),
-                abs(self.mando - anterior[2]),
-            )
-            if delta < self.tolerancia:
-                break
+        forcas = ajusta_forcas(
+            [
+                Observacao(p.mandante, p.visitante, p.gols_mandante, p.gols_visitante)
+                for p in partidas
+            ],
+            pesos,
+            iteracoes=self.iteracoes,
+            tolerancia=self.tolerancia,
+            mando_inicial=self.mando,
+        )
+        self.mu, self.mando = forcas.mu, forcas.mando
+        self.ataque, self.defesa = forcas.ataque, forcas.defesa
 
         if self.ajusta_rho:
             self.rho = self._melhor_rho(partidas, pesos)

@@ -488,7 +488,14 @@ def formata_combinada(combinada: Combinada, banca: float = 0.0) -> str:
         ["Multiplicando as pernas (ingenuo)", pct(combinada.ingenua)],
         ["Odd justa pela conta ingenua", num(combinada.odd_justa_ingenua)],
     ]
-    hipotetico = combinada.preco_do_produto and combinada.mesmo_jogo and len(combinada.pernas) > 1
+    # so e "hipotetico" quando as pernas de fato se correlacionam; pernas
+    # praticamente independentes (gol x escanteio, medido em 0,98) tornam o
+    # produto uma referencia razoavel - o preco real ainda manda
+    correlacionadas = abs(combinada.correlacao - 1.0) > 0.02
+    hipotetico = (
+        combinada.preco_do_produto and combinada.mesmo_jogo
+        and len(combinada.pernas) > 1 and correlacionadas
+    )
     if combinada.odd_oferecida is not None:
         linhas.append([
             "Odd pelo produto das pernas" if combinada.preco_do_produto else "Odd oferecida pela casa",
@@ -513,6 +520,16 @@ def formata_combinada(combinada: Combinada, banca: float = 0.0) -> str:
             "\n--odd-total - so esse numero vale alguma coisa."
         )
 
+    if combinada.sem_sinal:
+        nomes = ", ".join(combinada.sem_sinal)
+        partes.append(
+            f"\n>> ATENCAO: {nomes} - o modelo dessa estatistica e PIOR que a simples"
+            "\n   frequencia historica da liga (rode `estatisticas --validar`). A"
+            "\n   probabilidade acima esta bem calibrada na distribuicao, mas a parte"
+            "\n   que depende dos times nao acrescenta nada. Apostar nisso e pagar"
+            "\n   margem para jogar a media da liga."
+        )
+
     if combinada.mesmo_jogo and len(combinada.pernas) > 1:
         fator = combinada.correlacao
         if fator > 1.02:
@@ -526,15 +543,20 @@ def formata_combinada(combinada: Combinada, banca: float = 0.0) -> str:
                 "\nMultiplicar as probabilidades superestimaria a multipla - e o erro caro."
             )
         else:
-            leitura = "As pernas sao praticamente independentes neste jogo."
+            leitura = (
+                "As pernas sao praticamente independentes neste jogo, entao o produto"
+                "\ndas probabilidades serve como referencia - confirme o preco real da"
+                "\nmultipla mesmo assim."
+            )
         partes.append("\nCorrelacao (mesmo jogo)")
         partes.append("  " + leitura.replace("\n", "\n  "))
-        partes.append(
-            "  Nenhuma casa deixa combinar pernas correlacionadas pelo produto das odds."
-        )
-        partes.append(
-            "  Use --odd-total com o preco que ela realmente ofereceu na multipla."
-        )
+        if correlacionadas:
+            partes.append(
+                "  Nenhuma casa deixa combinar pernas correlacionadas pelo produto das odds."
+            )
+            partes.append(
+                "  Use --odd-total com o preco que ela realmente ofereceu na multipla."
+            )
 
     partes.append("\nO que combinar custa")
     partes.append(
@@ -569,6 +591,61 @@ def formata_sugestoes(combinadas, maximo: int = 10) -> str:
         + "\n\nSao as selecoes de maior probabilidade, nao as de maior valor: so vale a pena"
         "\nse a casa pagar ACIMA da odd justa da coluna - o que raramente acontece."
     )
+
+
+
+def formata_estatisticas(agente, mandante: str, visitante: str) -> str:
+    """Escanteios, chutes e cartoes esperados - cada um com seu veredito."""
+    from .estatisticas import LINHAS
+
+    partes = [titulo(f"Estatisticas esperadas: {mandante} x {visitante}")]
+
+    resumo = []
+    for estatistica, modelo in agente.estatisticas.items():
+        casa, fora = modelo.expectativa(mandante, visitante)
+        resumo.append([
+            modelo.nome, num(casa), num(fora), num(casa + fora),
+            num(modelo.razao_variancia, 2),
+            ("+" if modelo.validacao and modelo.validacao.ganho >= 0 else "")
+            + (pct(modelo.validacao.ganho) if modelo.validacao else "-"),
+        ])
+    partes.append(
+        tabela_texto(
+            ["Estatistica", "Mandante", "Visitante", "Total", "Var/media", "Ganho s/ base"],
+            resumo, ["<", ">", ">", ">", ">", ">"],
+        )
+    )
+    partes.append(
+        "Var/media acima de 1 significa contagem mais espalhada que uma Poisson -"
+        "\npor isso a distribuicao usada e Binomial Negativa, que acerta as pontas."
+    )
+
+    for estatistica, modelo in agente.estatisticas.items():
+        mercados = modelo.mercados(mandante, visitante)
+        linhas = []
+        for linha in LINHAS.get(estatistica, ()):
+            chave = str(linha).replace(".", "")
+            if f"over{chave}" not in mercados:
+                continue
+            acima = mercados[f"over{chave}"]
+            linhas.append([
+                f"Mais de {str(linha).replace('.', ',')}",
+                pct(acima), num(1 / acima) if acima > 0 else "-",
+                pct(1 - acima), num(1 / (1 - acima)) if acima < 1 else "-",
+            ])
+        if not linhas:
+            continue
+        partes.append(titulo(modelo.nome, "-"))
+        partes.append(
+            tabela_texto(
+                ["Linha", "Over", "Odd justa", "Under", "Odd justa"],
+                linhas, ["<", ">", ">", ">", ">"],
+            )
+        )
+        if modelo.validacao:
+            marca = "  " if modelo.validacao.tem_sinal else "  >> "
+            partes.append(marca + modelo.validacao.veredito)
+    return "\n".join(partes)
 
 
 def formata_lista_times(times: Iterable[str]) -> str:

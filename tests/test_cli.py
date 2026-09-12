@@ -250,3 +250,58 @@ class TestComandosAoVivoECombinadas(unittest.TestCase):
         codigo, saida, _ = self.roda("sugerir", "--arquivo", str(confrontos), "--maximo", "5")
         self.assertEqual(codigo, 0)
         self.assertIn("Combinadas sugeridas", saida)
+
+
+class TestComandoEstatisticas(unittest.TestCase):
+    """A CLI de contagens so faz sentido com a base real - pula sem ela."""
+
+    @classmethod
+    def setUpClass(cls):
+        raiz = Path(__file__).resolve().parent.parent
+        cls.partidas = raiz / "dados" / "brasileirao_2015_2024.csv"
+        cls.stats = raiz / "dados" / "estatisticas_2015_2023.csv"
+        if not cls.partidas.exists() or not cls.stats.exists():
+            raise unittest.SkipTest("bases de estatisticas nao geradas")
+
+    def roda(self, *argumentos):
+        saida, erro = io.StringIO(), io.StringIO()
+        with redirect_stdout(saida), redirect_stderr(erro):
+            codigo = main([
+                "--dados", str(self.partidas), "--estatisticas", str(self.stats), *argumentos
+            ])
+        return codigo, saida.getvalue(), erro.getvalue()
+
+    def test_validar_mostra_o_veredito(self):
+        codigo, saida, _ = self.roda("estatisticas", "--validar")
+        self.assertEqual(codigo, 0)
+        self.assertIn("Brier base", saida)
+        self.assertIn("NAO", saida)  # escanteios nao tem sinal
+
+    def test_confronto_mostra_linhas(self):
+        codigo, saida, _ = self.roda("estatisticas", "Flamengo", "Santos")
+        self.assertEqual(codigo, 0)
+        self.assertIn("Escanteios", saida)
+        self.assertIn("SEM SINAL", saida)
+
+    def test_sem_times_pede_times(self):
+        codigo, _, erro = self.roda("estatisticas")
+        self.assertEqual(codigo, 2)
+        self.assertIn("mandante", erro)
+
+    def test_combinada_com_escanteio_avisa(self):
+        _, saida, _ = self.roda(
+            "combinar", "Flamengo x Santos: over25 @1.90",
+            "Flamengo x Santos: escanteios_over95 @1.85",
+        )
+        self.assertIn("ATENCAO", saida)
+        self.assertIn("escanteios", saida)
+
+    def test_escanteio_sem_base_explica_como_carregar(self):
+        saida, erro = io.StringIO(), io.StringIO()
+        with redirect_stdout(saida), redirect_stderr(erro):
+            codigo = main([
+                "--dados", str(self.partidas),
+                "combinar", "Flamengo x Santos: escanteios_over95 @1.85",
+            ])
+        self.assertEqual(codigo, 1)
+        self.assertIn("--estatisticas", erro.getvalue())

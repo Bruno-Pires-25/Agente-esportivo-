@@ -20,7 +20,26 @@ class MercadoDesconhecido(KeyError):
     """Selecao que o modelo de gols nao sabe resolver."""
 
 
+class MercadoDeContagem(MercadoDesconhecido):
+    """Selecao de escanteio/chute/cartao: existe, mas nao sai da matriz de gols.
+
+    Quem resolve e o modelo de contagem (`estatisticas.py`), que precisa da base
+    de estatisticas por partida. Esta excecao carrega o que foi pedido para quem
+    souber tratar.
+    """
+
+    def __init__(self, mensagem: str, estatistica: str, tipo: str, linha: float):
+        super().__init__(mensagem)
+        self.estatistica = estatistica
+        self.tipo = tipo
+        self.linha = linha
+
+
 PLACAR_EXATO = re.compile(r"^placar:(\d+)-(\d+)$")
+# ex.: escanteios_over95 -> mais de 9,5 escanteios (o ultimo digito e o decimal)
+CONTAGEM = re.compile(
+    r"^(escanteios|chutes_no_alvo|chutes|cartao_amarelo|faltas)_(over|under)(\d{2,})$"
+)
 LINHA_GOLS = re.compile(r"^(over|under)(\d)(\d)$")
 
 BASICOS: dict[str, Callable[[int, int], bool]] = {
@@ -74,12 +93,38 @@ def nome(selecao: str) -> str:
     if achado:
         lado = "Mais de" if achado.group(1) == "over" else "Menos de"
         return f"{lado} {achado.group(2)},{achado.group(3)} gols"
+    contagem = analisa_contagem(selecao)
+    if contagem:
+        estatistica, tipo, linha = contagem
+        from .estatisticas import NOMES as NOMES_CONTAGEM
+
+        lado = "Mais de" if tipo == "over" else "Menos de"
+        rotulo = NOMES_CONTAGEM.get(estatistica, estatistica).lower()
+        return f"{lado} {str(linha).replace('.', ',')} {rotulo}"
     return NOMES.get(selecao, selecao)
+
+
+def analisa_contagem(selecao: str) -> tuple[str, str, float] | None:
+    """Le uma selecao de contagem: (estatistica, 'over'|'under', linha)."""
+    achado = CONTAGEM.match(selecao.strip())
+    if not achado:
+        return None
+    digitos = achado.group(3)
+    return achado.group(1), achado.group(2), float(f"{digitos[:-1]}.{digitos[-1]}")
 
 
 def satisfaz(selecao: str, gols_casa: int, gols_fora: int) -> bool:
     """Diz se o placar (gols_casa, gols_fora) faz a selecao ganhar."""
     chave = selecao.strip()
+
+    contagem = analisa_contagem(chave)
+    if contagem:
+        estatistica, tipo, linha = contagem
+        raise MercadoDeContagem(
+            f"'{selecao}' e mercado de {estatistica}, que nao sai do placar. "
+            "Carregue a base de estatisticas (--estatisticas) para avalia-lo.",
+            estatistica, tipo, linha,
+        )
 
     for termo in FORA_DO_MODELO:
         if termo in chave.lower():
